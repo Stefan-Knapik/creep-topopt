@@ -8,6 +8,7 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 # Pass large closed-over arrays (mesh data, sparsity indices) to XLA as arguments instead of
 # embedding them as constants. Must be set before importing jax.
 os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 # Replay is constitutive-only (no linear solves) -> keep it on CPU so we don't
 # grab a GPU that may be busy with real runs.
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
@@ -120,7 +121,7 @@ def constitutive_step(sigmas_old, eps_creep_old, thetas, sol, dt):
 
 
 def reconstruct(design_tag, pkl_name):
-    vtu = meshio.read(design_dirs[design_tag] / "vtk/sol_250.vtu")
+    vtu = meshio.read(max((design_dirs[design_tag] / "vtk").glob("sol_*.vtu")))  # final design
     geom = onp.asarray(vtu.cell_data["geom"][0])
     theta = geom.reshape(-1, 1)
 
@@ -157,7 +158,7 @@ if __name__ == "__main__":
         out[f"{tag}__creep_strain_final"] = epsf
 
     # Sanity check against the creep-design VTU, which already stores these fields.
-    ref = meshio.read(design_dirs["creep_50"] / "vtk/sol_250.vtu")
+    ref = meshio.read(max((design_dirs["creep_50"] / "vtk").glob("sol_*.vtu")))
     ref_sig0 = onp.asarray(ref.cell_data["stress_0"][0])
     ref_epsf = onp.asarray(ref.cell_data["creep_strain_final"][0])
     d_sig = onp.abs(out["creep_50__stress_0"] - ref_sig0).max()

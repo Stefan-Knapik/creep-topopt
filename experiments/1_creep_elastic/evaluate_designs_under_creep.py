@@ -9,6 +9,7 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3") # hide PJRT logs
 # Pass large closed-over arrays (mesh data, sparsity indices) to XLA as arguments instead of
 # embedding them as constants. Must be set before importing jax.
 os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 ROOT = Path(__file__).resolve().parents[2] # repository root
 data_dir = str(ROOT / "results" / "1_creep_elastic" / "data_evaluation")
 
@@ -114,15 +115,19 @@ def fwd_pred(theta):
     )
     return full_sol[0], body_params
 
+def last_vtu(run_dir):
+    """Final design of an optimization run: its highest-numbered vtk/sol_*.vtu (sol_250 for a full run)."""
+    return max((ROOT / run_dir / 'vtk').glob('sol_*.vtu'))
+
 if __name__ == "__main__":
-    mesh = meshio.read(ROOT / 'results/1_creep_elastic/data_elastic_50/vtk/sol_250.vtu')
+    mesh = meshio.read(last_vtu('results/1_creep_elastic/data_elastic_50'))
     geom = mesh.cell_data.get('geom')[0]
     theta = geom.reshape(-1, 1)
     full_sol, body_params = fwd_pred(theta)
     with open(os.path.join(data_dir, 'creep_solution_for_elastic_design.pkl'), 'wb') as f:
         pickle.dump(full_sol, f)
 
-    mesh = meshio.read(ROOT / 'results/2_pareto_vf/data_creep_50/vtk/sol_250.vtu')
+    mesh = meshio.read(last_vtu('results/2_pareto_vf/data_creep_50'))
     geom = mesh.cell_data.get('geom')[0]
     theta = geom.reshape(-1, 1)
     full_sol, body_params = fwd_pred(theta)

@@ -7,7 +7,9 @@
 #
 # Steps: 2_pareto_vf 1_creep_elastic 3_thermal_creep 4_load_magnitude 5_blade appendix figures
 # (1_creep_elastic reuses the V*=0.5 design from 2_pareto_vf, so run that first.)
-# Each script's output goes to logs/<step>.log; wall times are appended to results/timings.csv.
+# Each script's output goes to logs/<step>.log; wall time, peak host RSS and peak GPU memory (whole
+# device, sampled each second into logs/<step>_gpu.csv) are appended to results/timings.csv.
+# TOGA_MAX_ITER=2 caps the MMA iterations of the optimization scripts (quick smoke test).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,16 +36,38 @@ fi
 export CUDA_VISIBLE_DEVICES="${GPU:-0}"
 PYTHON="${PYTHON:-python}"
 mkdir -p logs results
-[ -f results/timings.csv ] || echo "step,command,gpu,start,end,seconds,exit_code" > results/timings.csv
+TIMINGS_HEADER="step,command,gpu,start,end,seconds,exit_code,peak_rss_mb,peak_gpu_mb"
+if [ -f results/timings.csv ] && [ "$(head -n1 results/timings.csv)" != "$TIMINGS_HEADER" ]; then
+    mv results/timings.csv "results/timings_old_$(date +%Y%m%d_%H%M%S).csv"  # older format, keep it aside
+fi
+[ -f results/timings.csv ] || echo "$TIMINGS_HEADER" > results/timings.csv
 
-run() {  # run <step> <command...>: log output and wall time
+run() {  # run <step> <command...>: log output, wall time, peak host RSS and peak GPU memory
     local step=$1; shift
-    local start end code=0
+    local start end code=0 rss_file gpu_file smi_pid="" peak_rss="" peak_gpu=""
+    rss_file=$(mktemp)
+    gpu_file="logs/${step}_gpu.csv"  # GPU memory.used (MiB, whole device) sampled once per second
+    if command -v nvidia-smi > /dev/null; then
+        nvidia-smi -i "${CUDA_VISIBLE_DEVICES%%,*}" --query-gpu=timestamp,memory.used \
+            --format=csv,noheader,nounits -lms 1000 >> "$gpu_file" 2> /dev/null & smi_pid=$!
+    fi
     start=$(date +%s)
     echo "[$(date '+%F %T')] $step: $*" | tee -a "logs/$step.log"
-    "$@" >> "logs/$step.log" 2>&1 || code=$?
+    if [ -x /usr/bin/time ]; then
+        /usr/bin/time -f "%M" -o "$rss_file" "$@" >> "logs/$step.log" 2>&1 || code=$?
+        peak_rss=$(( $(tail -n1 "$rss_file" | grep -Eo '^[0-9]+$' || echo 0) / 1024 ))
+    else
+        "$@" >> "logs/$step.log" 2>&1 || code=$?
+    fi
     end=$(date +%s)
-    echo "$step,\"$*\",$CUDA_VISIBLE_DEVICES,$(date -d @"$start" '+%F %T'),$(date -d @"$end" '+%F %T'),$((end - start)),$code" >> results/timings.csv
+    if [ -n "$smi_pid" ]; then
+        kill "$smi_pid" 2> /dev/null; wait "$smi_pid" 2> /dev/null || true
+        peak_gpu=$(awk -F', *' -v s="$(date -d @"$start" '+%Y/%m/%d %H:%M:%S')" \
+            '$1 >= s && $2+0 > m {m = $2+0} END {print m+0}' "$gpu_file")
+    fi
+    rm -f "$rss_file"
+    echo "$step,\"$*\",$CUDA_VISIBLE_DEVICES,$(date -d @"$start" '+%F %T'),$(date -d @"$end" '+%F %T'),$((end - start)),$code,$peak_rss,$peak_gpu" >> results/timings.csv
+    echo "  done in $((end - start)) s, peak RSS ${peak_rss:-?} MB, peak GPU ${peak_gpu:-?} MB" | tee -a "logs/$step.log"
     if [ "$code" -ne 0 ]; then echo "  failed (exit $code), see logs/$step.log"; return "$code"; fi
 }
 
@@ -70,7 +94,7 @@ step_appendix() {
 }
 step_figures() {
     for nb in visualization/*.ipynb; do
-        run figures jupyter nbconvert --to notebook --execute --inplace "$nb"
+        run figures "$PYTHON" -m jupyter nbconvert --to notebook --execute --inplace "$nb"
     done
     for f in visualization/appendix/plot_A*.py; do run figures "$PYTHON" "$f"; done
     run figures "$PYTHON" visualization/flowchart.py

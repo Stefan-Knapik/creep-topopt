@@ -9,6 +9,7 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3") # hide PJRT logs
 # Pass large closed-over arrays (mesh data, sparsity indices) to XLA as arguments instead of
 # embedding them as constants. Must be set before importing jax.
 os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 ROOT = Path(__file__).resolve().parents[2] # repository root
 data_dir = str(ROOT / "results" / "1_creep_elastic" / "data_elastic_50")
 
@@ -170,7 +171,7 @@ output_sol.counter = 0
 theta_ini = np.ones((len(mesh.cells), 1)) * vf_constraint_max
 
 optimization_params = {
-    'max_iter': 250,
+    'max_iter': int(os.environ.get('TOGA_MAX_ITER', 250)),
     'change_tol': 1e-5,
     'fun_tol': 1e-5,
     'move': 0.1,

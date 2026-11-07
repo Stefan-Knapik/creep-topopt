@@ -11,6 +11,7 @@ def run(vf):
     # Pass large closed-over arrays (mesh data, sparsity indices) to XLA as arguments instead of
     # embedding them as constants. Must be set before importing jax.
     os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
+    os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
     ROOT = Path(__file__).resolve().parents[2] # repository root
     data_dir = str(ROOT / "results" / "5_blade" / f'data_creep_{int(vf*100)}')
 
@@ -276,7 +277,7 @@ def run(vf):
     theta_ini = np.ones((len(mesh.cells), len(material_names))) * (1.0 / len(material_names))
 
     optimization_params = {
-        'max_iter': 50,
+        'max_iter': int(os.environ.get('TOGA_MAX_ITER', 50)),
         'change_tol': 1e-5,
         'fun_tol': 1e-5,
         'move': 0.1,
@@ -339,9 +340,18 @@ def run(vf):
 
     optimize(problem_u.fe, theta_ini, optimization_params)
 
+def _release():
+    """Drop the finished run's compiled executables and assembly caches before the next run.
+    Every run() builds a new Problem whose jitted closures JAX would otherwise keep alive."""
+    import gc
+    import jax
+    jax.clear_caches()
+    gc.collect()
+
 if __name__ == "__main__":
-    volume_fractions = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.3, 0.2, 0.1]
+    volume_fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
     for vf in volume_fractions:
         print(f"\n\nRunning optimization with volume fraction constraint vf <= {vf:.1f}...\n\n")
         run(vf)
+        _release()

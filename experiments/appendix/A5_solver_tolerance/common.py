@@ -6,6 +6,7 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 # Pass large closed-over arrays (mesh data, sparsity indices) to XLA as arguments instead of
 # embedding them as constants. Must be set before importing jax.
 os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
 ROOT = Path(__file__).resolve().parents[3]  # repository root
 OUT_DIR = os.path.join(ROOT, "results", "appendix", "A5_solver_tolerance")

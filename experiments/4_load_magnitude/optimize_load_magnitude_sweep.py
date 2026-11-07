@@ -11,6 +11,7 @@ def run(service_life, bc_magnitude, vf):
     # Pass large closed-over arrays (mesh data, sparsity indices) to XLA as arguments instead of
     # embedding them as constants. Must be set before importing jax.
     os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
+    os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
     ROOT = Path(__file__).resolve().parents[2] # repository root
     data_dir = str(ROOT / "results" / "4_load_magnitude" / f'data_creep_{service_life}_{bc_magnitude}_{vf}')
 
@@ -208,7 +209,7 @@ def run(service_life, bc_magnitude, vf):
     theta_ini = np.ones((len(mesh.cells), 1))
 
     optimization_params = {
-        'max_iter': 250,
+        'max_iter': int(os.environ.get('TOGA_MAX_ITER', 250)),
         'change_tol': 1e-5,
         'fun_tol': 1e-5,
         'move': 0.1,
@@ -271,7 +272,18 @@ def run(service_life, bc_magnitude, vf):
 
     optimize(problem.fe, theta_ini, optimization_params)
 
+def _release():
+    """Drop the finished run's compiled executables and assembly caches before the next run.
+    Every run() builds a new Problem whose jitted closures JAX would otherwise keep alive."""
+    import gc
+    import jax
+    jax.clear_caches()
+    gc.collect()
+
 if __name__ == "__main__":
     run(1., 100., 0.5)
+    _release()
     run(1., 200., 0.5)
+    _release()
     run(1., 400., 0.5)
+    _release()

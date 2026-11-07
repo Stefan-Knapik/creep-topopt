@@ -11,6 +11,7 @@ def run(cold_temp, hot_temp, vf, case_name=None):
     # Pass large closed-over arrays (mesh data, sparsity indices) to XLA as arguments instead of
     # embedding them as constants. Must be set before importing jax.
     os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
+    os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
     ROOT = Path(__file__).resolve().parents[2] # repository root
     data_dir = str(ROOT / "results" / "3_thermal_creep" / f'data_creep_{case_name}_flex')
 
@@ -262,7 +263,7 @@ def run(cold_temp, hot_temp, vf, case_name=None):
     theta_ini = np.ones((len(mesh.cells), 1))
 
     optimization_params = {
-        'max_iter': 250,
+        'max_iter': int(os.environ.get('TOGA_MAX_ITER', 250)),
         'change_tol': 1e-5,
         'fun_tol': 1e-5,
         'move': 0.1,
@@ -325,10 +326,21 @@ def run(cold_temp, hot_temp, vf, case_name=None):
 
     optimize(problem_u.fe, theta_ini, optimization_params)
 
+def _release():
+    """Drop the finished run's compiled executables and assembly caches before the next run.
+    Every run() builds a new Problem whose jitted closures JAX would otherwise keep alive."""
+    import gc
+    import jax
+    jax.clear_caches()
+    gc.collect()
+
 if __name__ == "__main__":
     # Paper temperatures are in kelvin (300 K / 1100 K); toga's thermal creep takes °C
     # (it adds 273.15 inside the Arrhenius term), so every absolute temperature is shifted.
     K = 273.15
     run(cold_temp=300.0 - K,  hot_temp=300.0 - K,  vf=0.3, case_name='cold_0.3')
+    _release()
     run(cold_temp=1100.0 - K, hot_temp=1100.0 - K, vf=0.3, case_name='hot_0.3')
+    _release()
     run(cold_temp=300.0 - K,  hot_temp=1100.0 - K, vf=0.3, case_name='cold_hot_0.3')
+    _release()
