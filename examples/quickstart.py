@@ -1,5 +1,8 @@
 """Quickstart: creep compliance of a cantilever and its gradient w.r.t. element densities."""
 import logging
+import os
+
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")  # allocate GPU memory on demand
 
 import jax
 import jax.numpy as np
