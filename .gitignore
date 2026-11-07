@@ -1,0 +1,42 @@
+# Project outputs
+data*/
+jax_cache/
+logs/
+frames*/
+results/**/vtk/
+*.pkl
+*.npz
+*.log
+results/timings.csv
+figures/A5_solver_tolerance_solid.*
+toga/mesh/blade/*.vtu
+
+# Python
+__pycache__/
+*.py[codz]
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+.venv
+venv/
+.env
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot

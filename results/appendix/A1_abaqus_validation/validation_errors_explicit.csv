@@ -1,0 +1,15 @@
+case,method,num_time_steps,quantity,reference,max_abs_err,max_rel_err
+tension,explicit,32,creep_strain_xx,abaqus,9.236047517069412e-11,7.977681537592093e-08
+tension,explicit,32,sigma_xx,abaqus,1.468359172918099e-05,4.588622415369059e-08
+tension,explicit,32,creep_strain_yy,abaqus,4.618023769376728e-11,3.988840778160896e-08
+tension,explicit,32,sigma_yy,abaqus,7.868906684247604e-14,2.4590333388273763e-16
+tension,explicit,32,sigma_xx,analytical,6.078588511552027,0.01899558909860008
+tension,explicit,32,creep_strain_xx,analytical,3.799117819720018e-05,0.03322956074942312
+tension,explicit,1024,sigma_xx,analytical,0.1690232466126531,0.0005281976456645408
+tension,explicit,1024,creep_strain_xx,analytical,1.056395291329222e-06,0.0009239921785635993
+mixed,explicit,32,creep_strain_xx,abaqus,1.3919910059681517e-10,6.834965384841243e-08
+mixed,explicit,32,sigma_xx,abaqus,1.9253817924891337e-05,4.259033138770172e-08
+mixed,explicit,32,creep_strain_yy,abaqus,2.5340538532554052e-11,1.2442731523453928e-08
+mixed,explicit,32,sigma_yy,abaqus,6.510370923251685e-06,1.4401240115586672e-08
+mixed,explicit,32,creep_strain_xy,abaqus,6.568071824267219e-11,3.225059886992161e-08
+mixed,explicit,32,sigma_xy,abaqus,6.290510825124329e-06,1.3914899459686367e-08

@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "toga"
+version = "0.0.1"
+authors = [
+  {name = "Stefan Knapik", email = "stefanknapik2025@u.northwestern.edu"},
+]
+description = "JAX finite-element topology optimization with nonlinear creep"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = [
+  "jax",
+  "numpy",
+  "scipy",
+  "matplotlib",
+  "pandas",
+  "meshio",
+  "fenics-basix",
+  "optimistix",
+]
+# pypardiso (used via solver_options={'pardiso_solver': {}}) is installed from
+# conda-forge in environment.yml together with mkl; it is not listed here since
+# pip would otherwise pull a second copy of mkl from PyPI.
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/Stefan-Knapik/creep-topopt"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["toga*"]
+
+[tool.setuptools.package-data]
+"toga.mat" = ["material_data/*.csv", "material_data/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+ignore = ["E731", "E741"]  # lambda assignments and I/J index names are idiomatic in the FE code

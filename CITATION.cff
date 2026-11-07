@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the paper below."
+title: "Thermo-Structural Topology Optimization Considering Nonlinear Creep"
+repository-code: "https://github.com/Stefan-Knapik/creep-topopt"
+license: GPL-3.0-or-later
+authors:
+  - family-names: Knapik
+    given-names: Stefan
+    affiliation: Northwestern University
+identifiers:
+  - type: other
+    value: "arXiv:2607.22833"
+    description: Preprint of the companion paper
+preferred-citation:
+  type: article
+  title: "Thermo-Structural Topology Optimization Considering Nonlinear Creep"
+  status: submitted
+  journal: "Structural and Multidisciplinary Optimization"
+  year: 2026
+  url: "https://arxiv.org/abs/2607.22833"
+  identifiers:
+    - type: other
+      value: "arXiv:2607.22833"
+  authors:
+    - family-names: Knapik
+      given-names: Stefan
+    - family-names: Chandrasekhar
+      given-names: Aaditya
+    - family-names: Sharma
+      given-names: Deepak
+    - family-names: Cao
+      given-names: Jian
+    - family-names: Sun
+      given-names: Changjie
+    - family-names: Chen
+      given-names: Wei
