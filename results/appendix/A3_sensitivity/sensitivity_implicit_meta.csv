@@ -1,2 +1,2 @@
 method,nx,ny,num_cells,num_time_steps,end_time_s,rmin,fd_step,num_samples,J0,penal_A_exponent
-implicit,40,20,800,4,31536000,1.5,0.0001,800,3360.474737450986,3.5
+implicit,40,20,800,4,31536000,1.5,0.0001,800,3360.474737450988,3.5
