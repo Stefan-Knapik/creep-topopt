@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from collections.abc import Callable
 from typing import Any
 
@@ -119,9 +120,54 @@ def _solve_with_pardiso(
     return np.asarray(pypardiso.spsolve(A_use, rhs, **solver_kwargs))
 
 
+class CachedPardiso:
+    """Pardiso with the symbolic analysis cached for a fixed sparsity pattern.
+
+    pypardiso.spsolve reruns the symbolic analysis (fill-reducing ordering) for every new
+    matrix. Here it runs once per sparsity pattern, and a factorization is reused while the
+    matrix values are unchanged. mtype 11 (general, as pypardiso) works for any A; mtype -2
+    (symmetric indefinite) factorizes only the upper triangle and is valid only for A = A^T.
+    """
+
+    def __init__(self, mtype: int = 11):
+        import pypardiso
+
+        self.ps = pypardiso.PyPardisoSolver(mtype=mtype)
+        self.symmetric = mtype != 11
+        self.indptr = self.indices = self.data = None
+
+    def _run(self, phase: int, b: np.ndarray) -> np.ndarray:
+        self.ps.set_phase(phase)
+        return self.ps._call_pardiso(self.U, b)
+
+    def __call__(self, A_csr, rhs: np.ndarray, *, transpose: bool, **_: Any) -> np.ndarray:
+        A = _to_scipy_csr(A_csr)
+        if transpose and not self.symmetric:
+            A = A.T.tocsr()
+        n = A.shape[0]
+        if self.indptr is None or not (
+            np.array_equal(A.indptr, self.indptr) and np.array_equal(A.indices, self.indices)
+        ):  # new sparsity pattern: build the matrix Pardiso sees and run the symbolic analysis
+            A.sort_indices()
+            rows = np.repeat(np.arange(n), np.diff(A.indptr))
+            self.keep = np.flatnonzero(A.indices >= rows) if self.symmetric else np.arange(A.nnz)
+            indptr = np.searchsorted(rows[self.keep], np.arange(n + 1))
+            self.U = sp.csr_matrix((A.data[self.keep], A.indices[self.keep], indptr), shape=A.shape)
+            self.indptr, self.indices, self.data = A.indptr.copy(), A.indices.copy(), None
+            self._run(11, np.zeros((n, 1)))
+        if self.data is None or not np.array_equal(A.data, self.data):
+            self.U.data[:] = A.data[self.keep]
+            self._run(22, np.zeros((n, 1)))
+            self.data = A.data.copy()
+        b = np.asfortranarray(np.asarray(rhs, dtype=np.float64).reshape(n, -1))
+        return np.asarray(self._run(33, b)).reshape(np.shape(rhs))
+
+
 SOLVER_REGISTRY: dict[str, SolverFn] = {
     "scipy": _solve_with_scipy,
-    "pardiso": _solve_with_pardiso,
+    # TOGA_PARDISO=cached: CachedPardiso (general); =sym: symmetric, only for A = A^T
+    "pardiso": {"cached": lambda: CachedPardiso(11), "sym": lambda: CachedPardiso(-2)}.get(
+        os.environ.get("TOGA_PARDISO"), lambda: _solve_with_pardiso)(),
 }
 
 

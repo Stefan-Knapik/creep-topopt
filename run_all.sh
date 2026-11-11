@@ -34,6 +34,11 @@ if [ -n "${GPUS:-}" ]; then
 fi
 
 export CUDA_VISIBLE_DEVICES="${GPU:-0}"
+# numpy's OpenBLAS threads and MKL's OpenMP threads (Pardiso) oversubscribe the CPU,
+# and MKL threads spin for 200 ms after each call by default.
+export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}" KMP_BLOCKTIME="${KMP_BLOCKTIME:-0}"
+# Pardiso with cached symbolic analysis (toga/fem/sparse_linear_solvers.py); TOGA_PARDISO=none for pypardiso.spsolve.
+export TOGA_PARDISO="${TOGA_PARDISO:-cached}"
 PYTHON="${PYTHON:-python}"
 mkdir -p logs results
 TIMINGS_HEADER="step,command,gpu,start,end,seconds,exit_code,peak_rss_mb,peak_gpu_mb"
