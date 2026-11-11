@@ -31,7 +31,7 @@ Creep is the slow, permanent deformation of a material under sustained load at h
 ## Highlights
 - **Nonlinear, history-dependent physics.** Norton power-law creep with explicit or implicit (local Newton return map) time integration, coupled to Arrhenius temperature dependence and steady-state nonlinear heat conduction.
 - **Exact gradients through the transient solve.** JAX reverse-mode autodiff with implicit differentiation of every nonlinear solve.
-- **Hybrid GPU/CPU execution.** Assembly, the creep return map and autodiff are JIT-compiled on the GPU; sparse linear systems are factorized on the CPU with PARDISO for speed. A 3D blade with 174k displacement DOFs optimizes in ~25 min on one 8 GB RTX 3070.
+- **Hybrid GPU/CPU execution.** Assembly, the creep return map and autodiff are JIT-compiled on the GPU; sparse linear systems are factorized on the CPU with PARDISO for speed. A 3D blade with 174k displacement DOFs optimizes in ~22 min on one 8 GB RTX 3070.
 - **Topology and multi-material design.** 2D density-based topology optimization and 3D graded IN625/SS316 blade design with temperature- and composition-dependent properties.
 - **Verified.** Against Abaqus and a closed-form solution, with convergence studies ([`experiments/appendix`](experiments/appendix)).
 
@@ -70,14 +70,14 @@ GPU=1 ./run_all.sh 5_blade         # one step on a chosen GPU
 
 | Paper | Experiment | Folder | Wall time\* | Peak GPU memory\* |
 |---|---|---|---|---|
-| Sec. 4.1 | Creep vs elastic design | [`1_creep_elastic`](experiments/1_creep_elastic) | ~3 min† | 3.9 GB |
-| Sec. 4.2 | Pareto front over volume fraction | [`2_pareto_vf`](experiments/2_pareto_vf) | ~1.6 h | 4.7 GB |
-| Sec. 4.3 | Thermal boundary conditions | [`3_thermal_creep`](experiments/3_thermal_creep) | ~0.9 h | 4.1 GB |
-| Sec. 4.4 | Load magnitude | [`4_load_magnitude`](experiments/4_load_magnitude) | ~0.9 h | 4.1 GB |
-| Sec. 4.5 | Graded IN625/SS316 blade | [`5_blade`](experiments/5_blade) | ~3.6 h | 5.7 GB |
-| App. B | Verification (Abaqus, time step, sensitivities, mesh, solver tolerances) | [`appendix`](experiments/appendix) | ~0.6 h | 4.7 GB |
+| Sec. 4.1 | Creep vs elastic design | [`1_creep_elastic`](experiments/1_creep_elastic) | ~2 min† | 3.9 GB |
+| Sec. 4.2 | Pareto front over volume fraction | [`2_pareto_vf`](experiments/2_pareto_vf) | ~0.9 h | 4.7 GB |
+| Sec. 4.3 | Thermal boundary conditions | [`3_thermal_creep`](experiments/3_thermal_creep) | ~0.5 h | 4.1 GB |
+| Sec. 4.4 | Load magnitude | [`4_load_magnitude`](experiments/4_load_magnitude) | ~0.5 h | 4.1 GB |
+| Sec. 4.5 | Graded IN625/SS316 blade | [`5_blade`](experiments/5_blade) | ~3.3 h | 5.7 GB |
+| App. B | Verification (Abaqus, time step, sensitivities, mesh, solver tolerances) | [`appendix`](experiments/appendix) | ~0.3 h | 4.7 GB |
 
-\*Sequential `./run_all.sh` on a 24-core desktop with one 8 GB NVIDIA RTX 3070 (under WSL2) takes less than 8 hours in total. Peak GPU memory is for the whole device, including other processes. Under WSL2, set `XLA_PYTHON_CLIENT_ALLOCATOR=cuda_async` for the `5_blade` step, because the default allocator may intermittently result in an out-of-memory error on small GPUs (≤ 8 GB).
+\*Sequential `./run_all.sh` on a 24-core desktop with one 8 GB NVIDIA RTX 3070 (under WSL2) takes less than 6 hours in total. Peak GPU memory is for the whole device, including other processes. Under WSL2, set `XLA_PYTHON_CLIENT_ALLOCATOR=cuda_async` for the `5_blade` step, because the default allocator may intermittently result in an out-of-memory error on small GPUs (≤ 8 GB).
 
 †After `2_pareto_vf`, whose V\*=0.5 design it reuses.
 
