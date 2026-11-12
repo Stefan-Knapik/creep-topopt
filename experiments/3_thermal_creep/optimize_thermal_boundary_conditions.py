@@ -1,7 +1,13 @@
 """Sec. 4.3 (Fig. 5): thermo-structural creep optimization at V* = 0.3 under cold, hot and cold-to-hot
-temperature boundary conditions. Writes results/3_thermal_creep/data_creep_{cold,hot,cold_hot}_0.3_flex/."""
+temperature boundary conditions. Writes results/3_thermal_creep/data_creep_{cold,hot,cold_hot}_0.3_flex/.
 
-def run(cold_temp, hot_temp, vf, case_name=None):
+    python optimize_thermal_boundary_conditions.py                         # the three cases of the paper
+    python optimize_thermal_boundary_conditions.py --temperature-dependent # the cold-to-hot case alone with
+                                                                           # E(T) and k(T) of IN625, written to
+                                                                           # data_creep_cold_hot_tdep_0.3_flex/
+"""
+
+def run(cold_temp, hot_temp, vf, case_name=None, temperature_dependent=False):
 
     #%% Import modules
 
@@ -36,7 +42,7 @@ def run(cold_temp, hot_temp, vf, case_name=None):
     from toga.mat import build_material_properties
     from toga.mat.material_properties import vmap_design_to_physical
     from toga.fem.generate_mesh import get_meshio_cell_type, Mesh, rectangle_mesh
-    from toga.physics.thermal import Thermal
+    from toga.physics.thermal import NonlinearThermal, Thermal
     from toga.physics.thermal_creep_implicit import ThermalCreepImplicit
     from toga.fem.solver import ad_wrapper
     from toga.opt.filtering import compute_filter_kd_tree, applyDensityFilter
@@ -48,17 +54,22 @@ def run(cold_temp, hot_temp, vf, case_name=None):
 
     #%% Define materials and properties
 
-    material_names = ["dummy"]
+    material_names = ["IN625"] if temperature_dependent else ["dummy"]
+
+    property_configs = {
+        "k": {"model": "constant", "value": 0.01,}, # W/(mm K)
+        "E": {"model": "constant", "value": 160e3,}, # MPa
+        "A": {"model": "constant", "value": 1e-21,}, # MPa^-n s^-1
+        "n": {"model": "constant", "value": 3.5,},
+        "Q": {"model": "constant", "value": 1e4,},
+    }
+    if temperature_dependent: # E(T) and k(T) piecewise linear between the tabulated rows of IN625
+        property_configs["k"] = {"model": "table"}
+        property_configs["E"] = {"model": "table"}
 
     material_properties = build_material_properties(
         material_names=material_names,
-        property_configs={
-            "k": {"model": "constant", "value": 0.01,}, # W/(mm K)
-            "E": {"model": "constant", "value": 160e3,}, # MPa
-            "A": {"model": "constant", "value": 1e-21,}, # MPa^-n s^-1
-            "n": {"model": "constant", "value": 3.5,},
-            "Q": {"model": "constant", "value": 1e4,},
-        },)
+        property_configs=property_configs,)
 
     #%% Define the mesh domain
 
@@ -117,7 +128,8 @@ def run(cold_temp, hot_temp, vf, case_name=None):
         additional_info=(material_properties,),
     )
 
-    problem_T = Thermal(
+    # k(T) makes the conduction problem nonlinear in T
+    problem_T = (NonlinearThermal if temperature_dependent else Thermal)(
         mesh,
         vec=1,
         dim=2,
@@ -178,6 +190,8 @@ def run(cold_temp, hot_temp, vf, case_name=None):
         geom, mat = vmap_design_to_physical(params)
         geom = geom.at[0::Ny].set(1.0) # bottom edge solid
         geom_smoothed = applyDensityFilter(ft, geom.reshape(-1, 1))
+        if temperature_dependent: # the table models take [composition, T]; one alloy, so composition = 1
+            mat = np.ones((len(geom), 1))
         params_physical = np.concatenate((geom_smoothed.reshape(-1, 1), mat), axis=1)
 
         temperature, u_full, body_params = fwd_pred(params_physical)
@@ -338,9 +352,21 @@ if __name__ == "__main__":
     # Paper temperatures are in kelvin (300 K / 1100 K); toga's thermal creep takes °C
     # (it adds 273.15 inside the Arrhenius term), so every absolute temperature is shifted.
     K = 273.15
-    run(cold_temp=300.0 - K,  hot_temp=300.0 - K,  vf=0.3, case_name='cold_0.3')
-    _release()
-    run(cold_temp=1100.0 - K, hot_temp=1100.0 - K, vf=0.3, case_name='hot_0.3')
-    _release()
-    run(cold_temp=300.0 - K,  hot_temp=1100.0 - K, vf=0.3, case_name='cold_hot_0.3')
-    _release()
+
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--temperature-dependent", action="store_true",
+                        help="run only the cold-to-hot case, with E(T) and k(T) of IN625")
+    args = parser.parse_args()
+
+    if args.temperature_dependent:
+        run(cold_temp=300.0 - K, hot_temp=1100.0 - K, vf=0.3, case_name='cold_hot_tdep_0.3',
+            temperature_dependent=True)
+        _release()
+    else:
+        run(cold_temp=300.0 - K,  hot_temp=300.0 - K,  vf=0.3, case_name='cold_0.3')
+        _release()
+        run(cold_temp=1100.0 - K, hot_temp=1100.0 - K, vf=0.3, case_name='hot_0.3')
+        _release()
+        run(cold_temp=300.0 - K,  hot_temp=1100.0 - K, vf=0.3, case_name='cold_hot_0.3')
+        _release()

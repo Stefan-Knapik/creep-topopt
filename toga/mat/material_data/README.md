@@ -1,7 +1,9 @@
 # Material data
 
 One CSV per alloy (`IN625.csv`, `SS316.csv`), read by `toga.mat.build_material_properties`.
-Each column is fitted by the model named in the experiment's `property_configs`. Columns given
+Each column is fitted by the model named in the experiment's `property_configs`: `"table"`
+(piecewise linear in temperature between the rows of an alloy, rule of mixtures in composition; used
+by the blade study), `"rbf"` or `"constant"`. Columns given
 only in the first row are temperature independent (fit them with `"temperature_dependent": False`).
 
 ## Units

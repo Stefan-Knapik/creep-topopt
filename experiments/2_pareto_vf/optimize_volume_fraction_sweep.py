@@ -1,7 +1,12 @@
 """Sec. 4.2 (Fig. 4): creep-compliance optimization swept over V* = 0.3 ... 0.8; the V* = 0.5 run is
-also the creep-aware design of Sec. 4.1. Writes results/2_pareto_vf/data_creep_{30,...,80}/."""
+also the creep-aware design of Sec. 4.1. Writes results/2_pareto_vf/data_creep_{30,...,80}/.
 
-def run(vf):
+Each run starts from the solid domain, except V* = 0.3, which starts from the V* = 0.4 design: from
+the solid start that run ends in a design that creeps more than the elastic-compliance design of the
+same volume.
+"""
+
+def run(vf, init_from=None):
 
     #%% Import modules
 
@@ -25,6 +30,7 @@ def run(vf):
 
     import jax.numpy as np
     import numpy as onp
+    import meshio
     import time
     _t_script_start = time.perf_counter()
 
@@ -206,7 +212,12 @@ def run(vf):
 
     # %% Define the optimization problem and solve it
 
-    theta_ini = np.ones((len(mesh.cells), 1))
+    if init_from is None:
+        theta_ini = np.ones((len(mesh.cells), 1))
+    else: # continuation: start from the final design of the run at volume fraction init_from
+        vtk_dir = ROOT / "results" / "2_pareto_vf" / f'data_creep_{int(init_from*100)}' / "vtk"
+        design = meshio.read(sorted(vtk_dir.glob("sol_*.vtu"))[-1]).cell_data["geom"][0]
+        theta_ini = np.asarray(design, dtype=float).reshape(-1, 1)
 
     optimization_params = {
         'max_iter': int(os.environ.get('TOGA_MAX_ITER', 250)),
@@ -281,9 +292,10 @@ def _release():
     gc.collect()
 
 if __name__ == "__main__":
-    volume_fractions = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    # (volume fraction, volume fraction of the design to start from; None = solid domain)
+    runs = [(0.4, None), (0.5, None), (0.6, None), (0.7, None), (0.8, None), (0.3, 0.4)]
 
-    for vf in volume_fractions:
+    for vf, init_from in runs:
         print(f"\n\nRunning optimization with volume fraction constraint vf <= {vf:.1f}...\n\n")
-        run(vf)
+        run(vf, init_from=init_from)
         _release()

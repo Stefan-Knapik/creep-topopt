@@ -70,7 +70,7 @@ GPU=1 ./run_all.sh 5_blade         # one step on a chosen GPU
 
 | Paper | Experiment | Folder | Wall time, desktop\* | Wall time, workstation‡ | Peak GPU memory\* |
 |---|---|---|---|---|---|
-| Sec. 4.1 | Creep vs elastic design | [`1_creep_elastic`](experiments/1_creep_elastic) | ~2 min† | ~1.5 min† | 3.9 GB |
+| Sec. 4.1 | Creep vs elastic design; elastic designs over volume fraction; aggregate creep measures and energy balance | [`1_creep_elastic`](experiments/1_creep_elastic) | ~2 min† | ~1.5 min† | 3.9 GB |
 | Sec. 4.2 | Pareto front over volume fraction | [`2_pareto_vf`](experiments/2_pareto_vf) | ~0.9 h | ~0.8 h | 4.7 GB |
 | Sec. 4.3 | Thermal boundary conditions | [`3_thermal_creep`](experiments/3_thermal_creep) | ~0.5 h | ~0.4 h | 4.1 GB |
 | Sec. 4.4 | Load magnitude | [`4_load_magnitude`](experiments/4_load_magnitude) | ~0.5 h | ~0.4 h | 4.1 GB |
@@ -79,9 +79,11 @@ GPU=1 ./run_all.sh 5_blade         # one step on a chosen GPU
 
 \*Sequential `./run_all.sh` on a 24-core desktop with one 8 GB NVIDIA RTX 3070 (under WSL2) takes less than 6 hours in total. Peak GPU memory is for the whole device, including other processes. Under WSL2, set `XLA_PYTHON_CLIENT_ALLOCATOR=cuda_async` for the `5_blade` step, because the default allocator may intermittently result in an out-of-memory error on small GPUs (≤ 8 GB).
 
-†After `2_pareto_vf`, whose V\*=0.5 design it reuses.
+†After `2_pareto_vf`, whose designs it reuses. The time is for the V\*=0.5 elastic design only; the step now also optimizes the elastic designs at the other volume fractions, evaluates them under creep with `experiments/2_pareto_vf/evaluate_elastic_designs.py` (`results/2_pareto_vf/pareto_comparison.csv`, Fig. 4) and writes `results/1_creep_elastic/creep_measures.csv`.
 
 ‡Shared 128-core workstation (AMD Threadripper PRO 7985WX) with two 96 GB NVIDIA RTX PRO 6000 Blackwell GPUs. Four streams ran concurrently, two per GPU: `5_blade` with 32 MKL threads, plus `2_pareto_vf`+`1_creep_elastic`, `3_thermal_creep`+`appendix` and `4_load_magnitude` with 24 threads each. Including the figures, the run took 2.2 hours in total. Each step's time includes slowdown from the other streams and from other users' jobs.
+
+Two steps contain runs added for the revision of the paper. `3_thermal_creep` repeats the cold-to-hot case with the temperature-dependent E(T) and k(T) of IN625 (`optimize_thermal_boundary_conditions.py --temperature-dependent`, written to `results/3_thermal_creep/data_creep_cold_hot_tdep_0.3_flex/`) and analyses both cold-to-hot designs under both property models (`evaluate_temperature_dependent_properties.py`). `5_blade` writes the mass and moment of inertia of every blade design to `results/5_blade/mass_inertia.csv` (`mass_inertia.py`).
 
 Each step logs to `logs/<step>.log` and appends its wall time, peak host memory and peak GPU memory to `results/timings.csv`.
 

@@ -6,7 +6,7 @@
 #   GPUS="1 2 3 4 5" ./run_all.sh        # everything, independent steps in parallel on GPUs 1-5
 #
 # Steps: 2_pareto_vf 1_creep_elastic 3_thermal_creep 4_load_magnitude 5_blade appendix figures
-# (1_creep_elastic reuses the V*=0.5 design from 2_pareto_vf, so run that first.)
+# (1_creep_elastic reuses the creep-aware designs from 2_pareto_vf, so run that first.)
 # Each script's output goes to logs/<step>.log; wall time, peak host RSS and peak GPU memory (whole
 # device, sampled each second into logs/<step>_gpu.csv) are appended to results/timings.csv.
 # TOGA_MAX_ITER=2 caps the MMA iterations of the optimization scripts (quick smoke test).
@@ -84,12 +84,20 @@ step_1_creep_elastic()  {
     run 1_creep_elastic "$PYTHON" -u experiments/1_creep_elastic/optimize_elastic_baseline.py
     run 1_creep_elastic "$PYTHON" -u experiments/1_creep_elastic/evaluate_designs_under_creep.py
     run 1_creep_elastic "$PYTHON" -u experiments/1_creep_elastic/reconstruct_stress_strain_fields.py
+    run 1_creep_elastic "$PYTHON" -u experiments/1_creep_elastic/aggregate_creep_measures.py
+    # Fig. 4 comparison: needs the elastic designs above and the creep-aware designs of 2_pareto_vf.
+    run 1_creep_elastic "$PYTHON" -u experiments/2_pareto_vf/evaluate_elastic_designs.py
 }
-step_3_thermal_creep()  { run 3_thermal_creep "$PYTHON" -u experiments/3_thermal_creep/optimize_thermal_boundary_conditions.py; }
+step_3_thermal_creep()  {
+    run 3_thermal_creep "$PYTHON" -u experiments/3_thermal_creep/optimize_thermal_boundary_conditions.py
+    run 3_thermal_creep "$PYTHON" -u experiments/3_thermal_creep/optimize_thermal_boundary_conditions.py --temperature-dependent
+    run 3_thermal_creep "$PYTHON" -u experiments/3_thermal_creep/evaluate_temperature_dependent_properties.py
+}
 step_4_load_magnitude() { run 4_load_magnitude "$PYTHON" -u experiments/4_load_magnitude/optimize_load_magnitude_sweep.py; }
 step_5_blade() {
     run 5_blade "$PYTHON" -u experiments/5_blade/optimize_graded_blade.py
     run 5_blade "$PYTHON" -u experiments/5_blade/evaluate_homogeneous_blends.py
+    run 5_blade "$PYTHON" -u experiments/5_blade/mass_inertia.py
 }
 step_appendix() {
     local A=experiments/appendix
