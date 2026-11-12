@@ -40,3 +40,7 @@ venv/
 *.toc
 *.lof
 *.lot
+
+# Rotating-blade study: coarse verification mesh and trial runs
+results/6_blade_centrifugal/mesh/
+results/6_blade_centrifugal/**/coarse/

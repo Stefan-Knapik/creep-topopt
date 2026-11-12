@@ -6,6 +6,8 @@
 #   GPUS="1 2 3 4 5" ./run_all.sh        # everything, independent steps in parallel on GPUs 1-5
 #
 # Steps: 2_pareto_vf 1_creep_elastic 3_thermal_creep 4_load_magnitude 5_blade appendix figures
+# Optional step, not part of the default list: 6_blade_centrifugal (the blade under centrifugal loading;
+# writes its own figures), e.g. GPU=1 ./run_all.sh 6_blade_centrifugal
 # (1_creep_elastic reuses the creep-aware designs from 2_pareto_vf, so run that first. figures needs
 # both: results/2_pareto_vf/pareto_comparison.csv is written at the end of 1_creep_elastic.)
 # GPUS always runs every step, so it cannot be combined with step arguments.
@@ -104,6 +106,18 @@ step_5_blade() {
     run 5_blade "$PYTHON" -u experiments/5_blade/optimize_graded_blade.py
     run 5_blade "$PYTHON" -u experiments/5_blade/evaluate_homogeneous_blends.py
     run 5_blade "$PYTHON" -u experiments/5_blade/mass_inertia.py
+}
+step_6_blade_centrifugal() {  # optional: rotating blade, centrifugal body force (not in the default list)
+    local B=experiments/6_blade_centrifugal
+    run 6_blade_centrifugal "$PYTHON" -u $B/verify_coarse.py
+    run 6_blade_centrifugal "$PYTHON" -u $B/optimize_graded_blade.py
+    run 6_blade_centrifugal "$PYTHON" -u $B/evaluate_homogeneous_blends.py
+    run 6_blade_centrifugal "$PYTHON" -u $B/optimize_graded_blade.py --mass 0.1 0.3 0.5 0.7
+    run 6_blade_centrifugal "$PYTHON" -u $B/optimize_graded_blade.py --mass 0.3 --inertia 0.25
+    run 6_blade_centrifugal "$PYTHON" -u $B/optimize_graded_blade.py --inertia 0.3
+    run 6_blade_centrifugal "$PYTHON" -u $B/evaluate_gain_factors.py --run data_creep_90
+    run 6_blade_centrifugal "$PYTHON" $B/summarize.py
+    run 6_blade_centrifugal "$PYTHON" $B/plot_pareto.py
 }
 step_appendix() {
     local A=experiments/appendix
