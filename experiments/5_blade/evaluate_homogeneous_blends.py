@@ -49,12 +49,12 @@ material_names = ["IN625", "SS316"]
 material_properties = build_material_properties(
     material_names=material_names,
     property_configs={
-        "k":     {"model": "rbf"},
-        "E":     {"model": "rbf"},
-        "logA":     {"model": "rbf", "temperature_dependent": False},
-        "n":     {"model": "rbf", "temperature_dependent": False},
-        "Q":     {"model": "rbf", "temperature_dependent": False},
-        "cost":  {"model": "rbf", "temperature_dependent": False},
+        "k":     {"model": "table"},
+        "E":     {"model": "table"},
+        "logA":     {"model": "table", "temperature_dependent": False},
+        "n":     {"model": "table", "temperature_dependent": False},
+        "Q":     {"model": "table", "temperature_dependent": False},
+        "cost":  {"model": "table", "temperature_dependent": False},
     },)
 
 #%% Define the mesh domain

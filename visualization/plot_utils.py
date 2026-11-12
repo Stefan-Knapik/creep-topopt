@@ -77,7 +77,13 @@ def threshold_to_vf(rho: np.ndarray, vf: float) -> np.ndarray:
 
 
 def load_design(vtu_path: str | Path, vf: float) -> Design:
-    """Read a design from a run's ``.vtu``, then filter it and threshold it to ``vf``."""
+    """Read a design from a run's ``.vtu``, then filter it and threshold it to ``vf``.
+
+    ``vtu_path`` may also be a run's ``vtk`` folder, in which case the last saved iteration is read.
+    """
+    vtu_path = Path(vtu_path)
+    if vtu_path.is_dir():
+        vtu_path = sorted(vtu_path.glob("sol_*.vtu"))[-1]
     mesh = meshio.read(vtu_path)
     points = np.asarray(mesh.points, dtype=float)[:, :2]
     cells = next(np.asarray(block.data, dtype=int) for block in mesh.cells if block.type == "quad")

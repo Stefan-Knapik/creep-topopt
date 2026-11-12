@@ -1,4 +1,4 @@
-"""Material property models (constant or RBF fits to the CSV data in material_data/)."""
+"""Material property models (constant, table or RBF fits to the CSV data in material_data/)."""
 from __future__ import annotations
 
 import csv
@@ -10,6 +10,7 @@ import jax.numpy as jnp
 from ..logger_setup import setup_logger
 from .constant_model import ConstantModel
 from .RBF_interpolator import RBFInterpolator
+from .table_model import TableModel
 
 DATA_DIR = Path(__file__).resolve().parent / "material_data"
 logger = setup_logger(__name__)
@@ -59,7 +60,7 @@ class MaterialProperties:
 
 
 def build_material_properties(material_names, property_configs, data_dir=None):
-    """Build one model per property from ``{name: {'model': 'constant'|'rbf', ...}}`` (units in material_data/README.md)."""
+    """Build one model per property from ``{name: {'model': 'constant'|'table'|'rbf', ...}}`` (units in material_data/README.md)."""
     property_models = {}
     for property_name, config in property_configs.items():
         property_models[property_name] = _build_property_model(
@@ -98,6 +99,17 @@ def _build_property_model(property_name, material_names, config, data_dir=None):
             )
         return ConstantModel(config["value"])
 
+    if model_name == "table":
+        temperature_dependent = bool(config.get("temperature_dependent", True))
+        tables = _load_material_tables(material_names, property_name, data_dir)
+        if not temperature_dependent:
+            tables = [
+                (temperatures[:1], jnp.atleast_1d(_constant_property_value(table, property_name, name)))
+                for table, name in zip(tables, material_names)
+                for temperatures in [table[0]]
+            ]
+        return TableModel(tables, temperature_dependent=temperature_dependent)
+
     if model_name == "rbf":
         return _build_rbf_model(
             property_name=property_name,
@@ -108,7 +120,7 @@ def _build_property_model(property_name, material_names, config, data_dir=None):
 
     raise ValueError(
         f"Unsupported model '{model_name}' for property '{property_name}'. "
-        "Choose from 'constant' or 'rbf'."
+        "Choose from 'constant', 'table' or 'rbf'."
     )
 
 

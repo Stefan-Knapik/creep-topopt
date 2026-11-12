@@ -53,7 +53,7 @@ def run(cold_temp, hot_temp, vf, case_name=None):
     material_properties = build_material_properties(
         material_names=material_names,
         property_configs={
-            "k": {"model": "constant", "value": 1.0,},
+            "k": {"model": "constant", "value": 0.01,}, # W/(mm K)
             "E": {"model": "constant", "value": 160e3,}, # MPa
             "A": {"model": "constant", "value": 1e-21,}, # MPa^-n s^-1
             "n": {"model": "constant", "value": 3.5,},

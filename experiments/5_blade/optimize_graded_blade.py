@@ -1,7 +1,12 @@
 """Sec. 4.5 (Figs. 7-8, Table 2): IN625/SS316 compositional grading of a 3D turbine blade, swept over
-the IN625 fraction V* = 0.1 ... 0.9. Writes results/5_blade/data_creep_{10,...,90}/."""
+the IN625 fraction V* = 0.1 ... 0.9. Writes results/5_blade/data_creep_{10,...,90}/.
 
-def run(vf):
+    python optimize_graded_blade.py                              # the sweep of the paper
+    python optimize_graded_blade.py --vf 0.3 --thermal-expansion # one run with thermal strains switched on,
+                                                                 # written to data_creep_30_cte/
+"""
+
+def run(vf, thermal_expansion=False):
 
     #%% Import modules
 
@@ -13,7 +18,7 @@ def run(vf):
     os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
     ROOT = Path(__file__).resolve().parents[2] # repository root
-    data_dir = str(ROOT / "results" / "5_blade" / f'data_creep_{int(vf*100)}')
+    data_dir = str(ROOT / "results" / "5_blade" / (f'data_creep_{round(vf*100)}' + ('_cte' if thermal_expansion else '')))
 
     import jax
     jax.config.update("jax_enable_x64", True)
@@ -40,7 +45,6 @@ def run(vf):
     from toga.physics.thermal import NonlinearThermal
     from toga.physics.thermal_creep_explicit import ThermalCreepExplicit
     from toga.fem.solver import ad_wrapper
-    from toga.opt.filtering import compute_filter_kd_tree
     from toga.opt import MMA
     from toga.utils import clean_data_dir, remove_orphan_nodes, quad_to_cell_average, save_vtu, timer, oom_hint
 
@@ -51,16 +55,22 @@ def run(vf):
 
     material_names = ["IN625", "SS316"]
 
+    # Each property is piecewise linear in temperature between the tabulated rows of an alloy and
+    # follows the rule of mixtures in composition.
+    property_configs = {
+        "k":     {"model": "table"},
+        "E":     {"model": "table"},
+        "logA":  {"model": "table", "temperature_dependent": False},
+        "n":     {"model": "table", "temperature_dependent": False},
+        "Q":     {"model": "table", "temperature_dependent": False},
+        "cost":  {"model": "table", "temperature_dependent": False},
+    }
+    if thermal_expansion: # the paper's sweep leaves alpha out, so thermal strains are zero
+        property_configs["alpha"] = {"model": "table"}
+
     material_properties = build_material_properties(
         material_names=material_names,
-        property_configs={
-            "k":     {"model": "rbf"},
-            "E":     {"model": "rbf"},
-            "logA":  {"model": "rbf", "temperature_dependent": False},
-            "n":     {"model": "rbf", "temperature_dependent": False},
-            "Q":     {"model": "rbf", "temperature_dependent": False},
-            "cost":  {"model": "rbf", "temperature_dependent": False},
-        },)
+        property_configs=property_configs,)
 
     #%% Define the mesh domain
 
@@ -281,15 +291,14 @@ def run(vf):
         'change_tol': 1e-5,
         'fun_tol': 1e-5,
         'move': 0.1,
-        'rmin': 1.5,
         'output_freq': 1,
     }
 
     def optimize(fe, theta_ini, optimization_params, data_sub_dir=None):
         data_folder = os.path.join(data_dir, data_sub_dir) if data_sub_dir else data_dir
 
-        H, Hs = compute_filter_kd_tree(fe, optimization_params['rmin'])
-        ft = {'H': H, 'Hs': Hs}
+        # The composition field is not filtered: the geometry is fixed and intermediate
+        # compositions are physical blends, so there is no checkerboarding to suppress.
 
         theta = theta_ini
 
@@ -314,7 +323,7 @@ def run(vf):
         while not optimizer.converged():
             with timer() as t_iter:
                 with timer() as t_eval, oom_hint():
-                    dF, (F, aux) = evaluate_performance_grad(theta, ft)
+                    dF, (F, aux) = evaluate_performance_grad(theta)
 
                 J = F['J'].reshape(1,)
                 dJ = dF['J'].reshape(-1)
@@ -349,9 +358,15 @@ def _release():
     gc.collect()
 
 if __name__ == "__main__":
-    volume_fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--vf", type=float, nargs="+", default=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+                        help="IN625 volume fractions to run")
+    parser.add_argument("--thermal-expansion", action="store_true",
+                        help="include thermal strains, with the tabulated expansion coefficients")
+    args = parser.parse_args()
 
-    for vf in volume_fractions:
+    for vf in args.vf:
         print(f"\n\nRunning optimization with volume fraction constraint vf <= {vf:.1f}...\n\n")
-        run(vf)
+        run(vf, thermal_expansion=args.thermal_expansion)
         _release()

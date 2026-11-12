@@ -1,4 +1,5 @@
 """Sec. 4.1 (Fig. 3): one-year creep simulation of the elastic and creep-aware V* = 0.5 designs.
+Each design is analysed as its optimizer analysed it: stored design variables -> density filter -> solver.
 Writes results/1_creep_elastic/data_evaluation/creep_solution_for_{elastic,creep}_design.pkl."""
 
 #%% Import modules
@@ -34,6 +35,7 @@ toga.logger.setLevel(logging.DEBUG)
 from toga.mat import build_material_properties
 from toga.fem.generate_mesh import get_meshio_cell_type, Mesh, rectangle_mesh
 from toga.physics.creep_implicit import CreepImplicit
+from toga.opt.filtering import compute_filter_kd_tree, applyDensityFilter
 from toga.utils import clean_data_dir
 
 print(f"Clearing old results in {data_dir}...")
@@ -103,6 +105,8 @@ problem.penalize_A = make_penalize_A(exponent=3.5, ramp=8.0)
 solver_options = {'pardiso_solver': {}}
 
 end_time = 3600 * 24 * 365 # 1 year in seconds
+# The optimizations use 10 steps. 60 steps here only give a smooth displacement history (Fig. 3);
+# the model and the analysed density field are the same.
 num_time_steps = 60
 
 def fwd_pred(theta):
@@ -119,17 +123,29 @@ def last_vtu(run_dir):
     """Final design of an optimization run: its highest-numbered vtk/sol_*.vtu (sol_250 for a full run)."""
     return max((ROOT / run_dir / 'vtk').glob('sol_*.vtu'))
 
-if __name__ == "__main__":
-    mesh = meshio.read(last_vtu('results/1_creep_elastic/data_elastic_50'))
-    geom = mesh.cell_data.get('geom')[0]
-    theta = geom.reshape(-1, 1)
+# Density filter of the optimizations (`rmin` in optimize_elastic_baseline.py and
+# 2_pareto_vf/optimize_volume_fraction_sweep.py).
+rmin = 1.5
+
+def evaluate(run_dir, pkl_name):
+    """Simulate the final design of ``run_dir`` under creep and save its displacement history."""
+    geom = meshio.read(last_vtu(run_dir)).cell_data.get('geom')[0]  # raw design variables
+    # The optimizers analyse the filtered density, so filter before solving.
+    theta = applyDensityFilter(ft, np.asarray(geom, dtype=np.float64).reshape(-1, 1))
     full_sol, body_params = fwd_pred(theta)
-    with open(os.path.join(data_dir, 'creep_solution_for_elastic_design.pkl'), 'wb') as f:
+    with open(os.path.join(data_dir, pkl_name), 'wb') as f:
         pickle.dump(full_sol, f)
 
-    mesh = meshio.read(last_vtu('results/2_pareto_vf/data_creep_50'))
-    geom = mesh.cell_data.get('geom')[0]
-    theta = geom.reshape(-1, 1)
-    full_sol, body_params = fwd_pred(theta)
-    with open(os.path.join(data_dir, 'creep_solution_for_creep_design.pkl'), 'wb') as f:
-        pickle.dump(full_sol, f)
+    compliance_0 = float(problem.compute_compliance(full_sol[0]))
+    compliance_final = float(problem.compute_compliance(full_sol[-1]))
+    max_disp = np.max(np.abs(full_sol[:, :, 1]), axis=1)
+    print(f"{run_dir}: C(0) = {compliance_0:.8f}; C(end) = {compliance_final:.8f}; "
+          f"J = {compliance_final - compliance_0:.8f}; "
+          f"max |u_y|: {float(max_disp[0]):.8e} -> {float(max_disp[-1]):.8e}")
+
+if __name__ == "__main__":
+    H, Hs = compute_filter_kd_tree(problem.fe, rmin)
+    ft = {'H': H, 'Hs': Hs}
+
+    evaluate('results/1_creep_elastic/data_elastic_50', 'creep_solution_for_elastic_design.pkl')
+    evaluate('results/2_pareto_vf/data_creep_50', 'creep_solution_for_creep_design.pkl')

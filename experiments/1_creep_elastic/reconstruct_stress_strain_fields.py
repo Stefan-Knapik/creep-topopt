@@ -1,5 +1,5 @@
 """Replay the constitutive update over the saved displacement histories to recover initial stress
-and final creep strain per cell. Writes results/1_creep_elastic/data_evaluation/reconstructed_fields.npz."""
+and final creep strain per cell, on the filtered density that was analysed. Writes results/1_creep_elastic/data_evaluation/reconstructed_fields.npz."""
 
 import os
 from pathlib import Path
@@ -26,6 +26,7 @@ import pickle
 from toga.mat import build_material_properties
 from toga.fem.generate_mesh import get_meshio_cell_type, Mesh, rectangle_mesh
 from toga.physics.creep_implicit import CreepImplicit
+from toga.opt.filtering import compute_filter_kd_tree, applyDensityFilter
 from toga.opt.penalization import penalize
 from toga.utils import quad_to_cell_average
 
@@ -103,12 +104,17 @@ problem.penalize_A = make_penalize_A(exponent=3.5, ramp=8.0)
 # --- Replay the constitutive update over the displacement history -----------
 
 end_time = 3600 * 24 * 365
-num_time_steps = 60
+num_time_steps = 60  # as in evaluate_designs_under_creep.py (the optimizations use 10)
 time_vector = np.linspace(0.0, end_time, num_time_steps + 1)
 dts_seq = onp.concatenate([[0.0], onp.diff(onp.asarray(time_vector))])
 
 num_cells = len(problem.fe.cells)
 num_quads = problem.fe.num_quads
+
+# Density filter of the optimizations, as in evaluate_designs_under_creep.py.
+rmin = 1.5
+H, Hs = compute_filter_kd_tree(problem.fe, rmin)
+ft = {"H": H, "Hs": Hs}
 
 
 @jax.jit
@@ -122,8 +128,9 @@ def constitutive_step(sigmas_old, eps_creep_old, thetas, sol, dt):
 
 def reconstruct(design_tag, pkl_name):
     vtu = meshio.read(max((design_dirs[design_tag] / "vtk").glob("sol_*.vtu")))  # final design
-    geom = onp.asarray(vtu.cell_data["geom"][0])
-    theta = geom.reshape(-1, 1)
+    geom = onp.asarray(vtu.cell_data["geom"][0])  # raw design variables
+    # Filtered density: the field the solver analysed.
+    theta = applyDensityFilter(ft, np.asarray(geom, dtype=np.float64).reshape(-1, 1))
 
     with open(os.path.join(data_dir, pkl_name), "rb") as f:
         full_sol = onp.asarray(pickle.load(f))  # (num_steps+1, num_nodes, 2)
@@ -142,7 +149,7 @@ def reconstruct(design_tag, pkl_name):
     creep_strain_final_cell = onp.asarray(
         quad_to_cell_average(problem.fe, eps_creep_old)
     ).reshape(-1, 4)
-    return geom, stress_0_cell, creep_strain_final_cell
+    return geom, onp.asarray(theta).ravel(), stress_0_cell, creep_strain_final_cell
 
 
 if __name__ == "__main__":
@@ -152,19 +159,22 @@ if __name__ == "__main__":
         ("creep_50", "creep_solution_for_creep_design.pkl"),
     ]:
         print(f"Reconstructing {tag} ...")
-        geom, sig0, epsf = reconstruct(tag, pkl)
+        geom, rho, sig0, epsf = reconstruct(tag, pkl)
         out[f"{tag}__geom"] = geom
+        out[f"{tag}__rho"] = rho  # filtered density
         out[f"{tag}__stress_0"] = sig0
         out[f"{tag}__creep_strain_final"] = epsf
 
-    # Sanity check against the creep-design VTU, which already stores these fields.
+    # Sanity check against the creep-design VTU, which already stores these fields. The initial
+    # stress is elastic and must agree to the VTU's single precision; the creep strain also differs
+    # by the time discretization (60 steps here, 10 in the optimization).
     ref = meshio.read(max((design_dirs["creep_50"] / "vtk").glob("sol_*.vtu")))
     ref_sig0 = onp.asarray(ref.cell_data["stress_0"][0])
     ref_epsf = onp.asarray(ref.cell_data["creep_strain_final"][0])
     d_sig = onp.abs(out["creep_50__stress_0"] - ref_sig0).max()
     d_eps = onp.abs(out["creep_50__creep_strain_final"] - ref_epsf).max()
-    print(f"[sanity] max |stress_0 - VTU|           = {d_sig:.4e}")
-    print(f"[sanity] max |creep_strain_final - VTU| = {d_eps:.4e}")
+    print(f"[sanity] max |stress_0 - VTU|           = {d_sig:.4e}  (max |VTU| = {onp.abs(ref_sig0).max():.4e})")
+    print(f"[sanity] max |creep_strain_final - VTU| = {d_eps:.4e}  (max |VTU| = {onp.abs(ref_epsf).max():.4e})")
 
     out_path = os.path.join(data_dir, "reconstructed_fields.npz")
     onp.savez_compressed(out_path, **out)
