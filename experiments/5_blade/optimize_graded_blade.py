@@ -3,7 +3,7 @@ the IN625 fraction V* = 0.1 ... 0.9. Writes results/5_blade/data_creep_{10,...,9
 
     python optimize_graded_blade.py                              # the sweep of the paper
     python optimize_graded_blade.py --vf 0.3 --thermal-expansion # one run with thermal strains switched on,
-                                                                 # written to data_creep_30_cte/
+                                                                 # written to data_creep_cte_30/
 """
 
 def run(vf, thermal_expansion=False):
@@ -18,7 +18,7 @@ def run(vf, thermal_expansion=False):
     os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
     ROOT = Path(__file__).resolve().parents[2] # repository root
-    data_dir = str(ROOT / "results" / "5_blade" / (f'data_creep_{round(vf*100)}' + ('_cte' if thermal_expansion else '')))
+    data_dir = str(ROOT / "results" / "5_blade" / (('data_creep_cte_' if thermal_expansion else 'data_creep_') + f'{round(vf*100)}'))
 
     import jax
     jax.config.update("jax_enable_x64", True)
