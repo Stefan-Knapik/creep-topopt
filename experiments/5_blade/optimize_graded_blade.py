@@ -1,12 +1,11 @@
 """Sec. 4.5 (Figs. 8-9, Table 3): IN625/SS316 compositional grading of a 3D turbine blade, swept over
 the IN625 fraction V* = 0.1 ... 0.9. Writes results/5_blade/data_creep_{10,...,90}/.
 
-    python optimize_graded_blade.py                              # the sweep of the paper
-    python optimize_graded_blade.py --vf 0.3 --thermal-expansion # one run with thermal strains switched on,
-                                                                 # written to data_creep_cte_30/
+
+    python optimize_graded_blade.py --vf 0.3   # a single volume fraction
 """
 
-def run(vf, thermal_expansion=False):
+def run(vf):
 
     #%% Import modules
 
@@ -18,7 +17,7 @@ def run(vf, thermal_expansion=False):
     os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
     ROOT = Path(__file__).resolve().parents[2] # repository root
-    data_dir = str(ROOT / "results" / "5_blade" / (('data_creep_cte_' if thermal_expansion else 'data_creep_') + f'{round(vf*100)}'))
+    data_dir = str(ROOT / "results" / "5_blade" / f'data_creep_{round(vf*100)}')
 
     import jax
     jax.config.update("jax_enable_x64", True)
@@ -56,7 +55,8 @@ def run(vf, thermal_expansion=False):
     material_names = ["IN625", "SS316"]
 
     # Each property is piecewise linear in temperature between the tabulated rows of an alloy and
-    # follows the rule of mixtures in composition.
+    # follows the rule of mixtures in composition. Thermal expansion is left out (no "alpha" model):
+    # with it, the explicit scheme used here is unstable at 10 steps.
     property_configs = {
         "k":     {"model": "table"},
         "E":     {"model": "table"},
@@ -65,9 +65,6 @@ def run(vf, thermal_expansion=False):
         "Q":     {"model": "table", "temperature_dependent": False},
         "cost":  {"model": "table", "temperature_dependent": False},
     }
-    if thermal_expansion: # the paper's sweep leaves alpha out, so thermal strains are zero
-        property_configs["alpha"] = {"model": "table"}
-
     material_properties = build_material_properties(
         material_names=material_names,
         property_configs=property_configs,)
@@ -344,11 +341,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--vf", type=float, nargs="+", default=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
                         help="IN625 volume fractions to run")
-    parser.add_argument("--thermal-expansion", action="store_true",
-                        help="include thermal strains, with the tabulated expansion coefficients")
     args = parser.parse_args()
 
     for vf in args.vf:
         print(f"\n\nRunning optimization with volume fraction constraint vf <= {vf:.1f}...\n\n")
-        run(vf, thermal_expansion=args.thermal_expansion)
+        run(vf)
         _release()
