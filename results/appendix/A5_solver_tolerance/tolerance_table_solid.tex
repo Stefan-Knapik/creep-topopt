@@ -2,21 +2,21 @@
 \toprule
 case & global \texttt{tol} & local \texttt{atol} & local \texttt{rtol} & $J$ & $|\Delta J| / J_{\mathrm{ref}}$ & $\|\Delta \nabla J\| / \|\nabla J_{\mathrm{ref}}\|$ & wall (s) \\
 \midrule
-reference (tightest) & $1.00\times 10^{-8}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.317589526$ & $0$ & $0$ & 10 \\
+reference (tightest) & $1.00\times 10^{-8}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.317589523$ & $0$ & $0$ & 12 \\
 \midrule
-\textbf{selected as default} & $1.00\times 10^{-6}$ & $1.00\times 10^{-10}$ & $1.00\times 10^{-4}$ & $1.317589488$ & $2.84\times 10^{-8}$ & $4.79\times 10^{-8}$ & 8 \\
+\textbf{selected as default} & $1.00\times 10^{-6}$ & $1.00\times 10^{-10}$ & $1.00\times 10^{-4}$ & $1.317589486$ & $2.84\times 10^{-8}$ & $4.78\times 10^{-8}$ & 7 \\
 \midrule
-global ladder & $1.00\times 10^{0}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.185108673$ & $1.01\times 10^{-1}$ & $3.29\times 10^{-2}$ & 7 \\
-global ladder & $1.00\times 10^{-2}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.317589488$ & $2.84\times 10^{-8}$ & $4.78\times 10^{-8}$ & 8 \\
-global ladder & $1.00\times 10^{-4}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.317589488$ & $2.84\times 10^{-8}$ & $4.79\times 10^{-8}$ & 8 \\
-global ladder & $1.00\times 10^{-6}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.317589488$ & $2.84\times 10^{-8}$ & $4.79\times 10^{-8}$ & 8 \\
+global ladder & $1.00\times 10^{0}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.185108669$ & $1.01\times 10^{-1}$ & $3.29\times 10^{-2}$ & 6 \\
+global ladder & $1.00\times 10^{-2}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.317589486$ & $2.84\times 10^{-8}$ & $4.78\times 10^{-8}$ & 7 \\
+global ladder & $1.00\times 10^{-4}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.317589486$ & $2.84\times 10^{-8}$ & $4.78\times 10^{-8}$ & 8 \\
+global ladder & $1.00\times 10^{-6}$ & $1.00\times 10^{-14}$ & $1.00\times 10^{-4}$ & $1.317589486$ & $2.84\times 10^{-8}$ & $4.79\times 10^{-8}$ & 7 \\
 \midrule
-local ladder & $1.00\times 10^{-8}$ & $1.00\times 10^{-6}$ & $1.00\times 10^{-4}$ & $1.317589119$ & $3.09\times 10^{-7}$ & $1.54\times 10^{-7}$ & 9 \\
-local ladder & $1.00\times 10^{-8}$ & $1.00\times 10^{-8}$ & $1.00\times 10^{-4}$ & $1.317589526$ & $3.52\times 10^{-11}$ & $2.38\times 10^{-11}$ & 9 \\
-local ladder & $1.00\times 10^{-8}$ & $1.00\times 10^{-10}$ & $1.00\times 10^{-4}$ & $1.317589526$ & $8.63\times 10^{-14}$ & $1.25\times 10^{-11}$ & 9 \\
-local ladder & $1.00\times 10^{-8}$ & $1.00\times 10^{-12}$ & $1.00\times 10^{-4}$ & $1.317589526$ & $8.63\times 10^{-14}$ & $6.25\times 10^{-11}$ & 9 \\
+local ladder & $1.00\times 10^{-8}$ & $1.00\times 10^{-6}$ & $1.00\times 10^{-4}$ & $1.317589116$ & $3.09\times 10^{-7}$ & $1.54\times 10^{-7}$ & 8 \\
+local ladder & $1.00\times 10^{-8}$ & $1.00\times 10^{-8}$ & $1.00\times 10^{-4}$ & $1.317589523$ & $3.52\times 10^{-11}$ & $1.84\times 10^{-11}$ & 8 \\
+local ladder & $1.00\times 10^{-8}$ & $1.00\times 10^{-10}$ & $1.00\times 10^{-4}$ & $1.317589523$ & $0$ & $1.78\times 10^{-11}$ & 8 \\
+local ladder & $1.00\times 10^{-8}$ & $1.00\times 10^{-12}$ & $1.00\times 10^{-4}$ & $1.317589523$ & $0$ & $1.85\times 10^{-11}$ & 8 \\
 \midrule
-local \texttt{rtol} check & $1.00\times 10^{-8}$ & $1.00\times 10^{-10}$ & $1.00\times 10^{-2}$ & $1.317589526$ & $2.59\times 10^{-13}$ & $2.64\times 10^{-11}$ & 9 \\
-local \texttt{rtol} check & $1.00\times 10^{-8}$ & $1.00\times 10^{-10}$ & $1.00\times 10^{-8}$ & $1.317589526$ & $8.63\times 10^{-14}$ & $1.81\times 10^{-11}$ & 9 \\
+local \texttt{rtol} check & $1.00\times 10^{-8}$ & $1.00\times 10^{-10}$ & $1.00\times 10^{-2}$ & $1.317589523$ & $8.63\times 10^{-14}$ & $2.01\times 10^{-11}$ & 8 \\
+local \texttt{rtol} check & $1.00\times 10^{-8}$ & $1.00\times 10^{-10}$ & $1.00\times 10^{-8}$ & $1.317589523$ & $0$ & $1.32\times 10^{-11}$ & 8 \\
 \bottomrule
 \end{tabular}

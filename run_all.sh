@@ -34,9 +34,12 @@ if [ -n "${GPUS:-}" ]; then
 fi
 
 export CUDA_VISIBLE_DEVICES="${GPU:-0}"
-# numpy's OpenBLAS threads and MKL's OpenMP threads (Pardiso) oversubscribe the CPU,
-# and MKL threads spin for 200 ms after each call by default.
-export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}" KMP_BLOCKTIME="${KMP_BLOCKTIME:-0}"
+# numpy's OpenBLAS threads and MKL's OpenMP threads (Pardiso) oversubscribe the CPU.
+export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
+# MKL threads spin for 200 ms (KMP_BLOCKTIME default) after each Pardiso call. Keep the default:
+# with KMP_BLOCKTIME=0 they sleep at once, and on a busy shared machine the next call waits for all
+# of them to be rescheduled (2D steps ~20% slower with 32 threads at load ~50). Set KMP_BLOCKTIME=0
+# yourself only on an otherwise idle machine where the spinning would compete with the other streams.
 # Pardiso with cached symbolic analysis (toga/fem/sparse_linear_solvers.py); TOGA_PARDISO=none for pypardiso.spsolve.
 export TOGA_PARDISO="${TOGA_PARDISO:-cached}"
 PYTHON="${PYTHON:-python}"

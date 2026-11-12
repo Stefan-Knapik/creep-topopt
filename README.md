@@ -68,18 +68,20 @@ GPU=1 ./run_all.sh 5_blade         # one step on a chosen GPU
 ./run_all.sh figures               # regenerate all figures from results/
 ```
 
-| Paper | Experiment | Folder | Wall time\* | Peak GPU memory\* |
-|---|---|---|---|---|
-| Sec. 4.1 | Creep vs elastic design | [`1_creep_elastic`](experiments/1_creep_elastic) | ~2 min† | 3.9 GB |
-| Sec. 4.2 | Pareto front over volume fraction | [`2_pareto_vf`](experiments/2_pareto_vf) | ~0.9 h | 4.7 GB |
-| Sec. 4.3 | Thermal boundary conditions | [`3_thermal_creep`](experiments/3_thermal_creep) | ~0.5 h | 4.1 GB |
-| Sec. 4.4 | Load magnitude | [`4_load_magnitude`](experiments/4_load_magnitude) | ~0.5 h | 4.1 GB |
-| Sec. 4.5 | Graded IN625/SS316 blade | [`5_blade`](experiments/5_blade) | ~3.3 h | 5.7 GB |
-| App. B | Verification (Abaqus, time step, sensitivities, mesh, solver tolerances) | [`appendix`](experiments/appendix) | ~0.3 h | 4.7 GB |
+| Paper | Experiment | Folder | Wall time, desktop\* | Wall time, workstation‡ | Peak GPU memory\* |
+|---|---|---|---|---|---|
+| Sec. 4.1 | Creep vs elastic design | [`1_creep_elastic`](experiments/1_creep_elastic) | ~2 min† | ~1.5 min† | 3.9 GB |
+| Sec. 4.2 | Pareto front over volume fraction | [`2_pareto_vf`](experiments/2_pareto_vf) | ~0.9 h | ~0.8 h | 4.7 GB |
+| Sec. 4.3 | Thermal boundary conditions | [`3_thermal_creep`](experiments/3_thermal_creep) | ~0.5 h | ~0.4 h | 4.1 GB |
+| Sec. 4.4 | Load magnitude | [`4_load_magnitude`](experiments/4_load_magnitude) | ~0.5 h | ~0.4 h | 4.1 GB |
+| Sec. 4.5 | Graded IN625/SS316 blade | [`5_blade`](experiments/5_blade) | ~3.3 h | ~2.2 h | 5.7 GB |
+| App. B | Verification (Abaqus, time step, sensitivities, mesh, solver tolerances) | [`appendix`](experiments/appendix) | ~0.3 h | ~0.4 h | 4.7 GB |
 
 \*Sequential `./run_all.sh` on a 24-core desktop with one 8 GB NVIDIA RTX 3070 (under WSL2) takes less than 6 hours in total. Peak GPU memory is for the whole device, including other processes. Under WSL2, set `XLA_PYTHON_CLIENT_ALLOCATOR=cuda_async` for the `5_blade` step, because the default allocator may intermittently result in an out-of-memory error on small GPUs (≤ 8 GB).
 
 †After `2_pareto_vf`, whose V\*=0.5 design it reuses.
+
+‡Shared 128-core workstation (AMD Threadripper PRO 7985WX) with two 96 GB NVIDIA RTX PRO 6000 Blackwell GPUs. Four streams ran concurrently, two per GPU: `5_blade` with 32 MKL threads, plus `2_pareto_vf`+`1_creep_elastic`, `3_thermal_creep`+`appendix` and `4_load_magnitude` with 24 threads each. Including the figures, the run took 2.2 hours in total. Each step's time includes slowdown from the other streams and from other users' jobs.
 
 Each step logs to `logs/<step>.log` and appends its wall time, peak host memory and peak GPU memory to `results/timings.csv`.
 
