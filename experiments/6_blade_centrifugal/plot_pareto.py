@@ -66,3 +66,29 @@ fig.tight_layout()
 fig.savefig(FIGURES / "pareto_J_vs_mass_blade_centrifugal.pdf")
 plt.close(fig)
 print(f"written to {FIGURES / 'pareto_J_vs_mass_blade_centrifugal.pdf'}")
+
+# Where the IN625 goes along the span, under centrifugal loading and under the tip traction of
+# experiments/5_blade (design_distribution.csv, written by summarize.py).
+dist_file = RUN_DIR / "design_distribution.csv"
+if dist_file.exists():
+    dist = pd.read_csv(dist_file).set_index(["study", "run"])
+    span_cols = [c for c in dist.columns if c.startswith("span_")]
+    centres = [np.mean([float(v) for v in c[len("span_"):-len("mm")].split("_")]) for c in span_cols]
+    fig, axes = plt.subplots(1, 2, figsize=(7.5, 3.4), sharey=True)
+    panels = (("tip_traction", "Tip traction"), ("centrifugal", "Centrifugal load"))
+    for ax, (study, title) in zip(axes, panels):
+        for run, label, style in (("data_creep_10", "$V_* = 0.1$", "-o"), ("data_creep_30", "$V_* = 0.3$", "-s"),
+                                  ("data_creep_90", "bound inactive", "-^")):
+            if (study, run) in dist.index:
+                ax.plot(centres, dist.loc[(study, run), span_cols].to_numpy(dtype=float), style, ms=4, label=label)
+        ax.set_title(title)
+        ax.set_xlabel("Distance from the root [mm]")
+        ax.set_xlim(0, 50)
+        ax.set_ylim(-0.03, 1.03)
+        ax.grid(True, ls=":", alpha=0.5)
+    axes[0].set_ylabel("Mean IN625 fraction of the section")
+    axes[0].legend()
+    fig.tight_layout()
+    fig.savefig(FIGURES / "blade_in625_spanwise.pdf")
+    plt.close(fig)
+    print(f"written to {FIGURES / 'blade_in625_spanwise.pdf'}")

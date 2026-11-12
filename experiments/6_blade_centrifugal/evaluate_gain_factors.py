@@ -63,8 +63,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--run", default=None, help="run directory with the graded design (default: lowest J of the V* sweep)")
     parser.add_argument("--coarse", action="store_true", help="use the coarse verification mesh")
+    parser.add_argument("--rpm", type=float, default=cb.RPM, help="rotation speed (default: %(default)s rpm)")
     args = parser.parse_args()
-    out_dir = cb.RESULTS / ("coarse" if args.coarse else "")
+    out_dir = cb.results_dir(args.rpm, args.coarse)
 
     if args.run is None:
         runs = [d for d in out_dir.glob("data_creep_*") if re.fullmatch(r"data_creep_\d+", d.name)]
@@ -76,7 +77,8 @@ if __name__ == "__main__":
 
     rows = []
     for variant, frozen in VARIANTS.items():
-        blade = cb.build_blade(cb.coarse_mesh() if args.coarse else cb.MESH_FILE, frozen=frozen)
+        blade = cb.build_blade(cb.coarse_mesh() if args.coarse else cb.MESH_FILE, frozen=frozen,
+                               omega=cb.rpm_to_omega(args.rpm))
         evaluate = jax.jit(lambda composition: blade.evaluate(composition)[0])
         fraction = float(blade.problem_u.compute_volume_fraction_of_material(blade.full_theta(graded), mat_idx=0))
         designs = {'IN625': cb.homogeneous(blade.num_cells, 1.0), 'graded': graded}
