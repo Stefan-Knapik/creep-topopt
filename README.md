@@ -21,12 +21,12 @@ Creep is the slow, permanent deformation of a material under sustained load at h
 <p align="center">
   <img src="figures/readme/elastic_vs_creep.png" width="720" alt="Designs optimized for elastic stiffness vs. creep, and their displacement over one year">
 </p>
-<p align="center"><em>The design optimized for creep deflects 25% less after one year of service than the design optimized for static stiffness.</em></p>
+<p align="center"><em>The design optimized for creep accumulates 24% less creep displacement over one year of service than the design optimized for static stiffness; its total tip displacement is slightly larger, because it is elastically less stiff.</em></p>
 <p align="center">
   <img src="figures/readme/BC_and_blade_mat_design.png" width="457" alt="Graded IN625/SS316 turbine-blade-like design">
   <img src="figures/readme/pareto_J_vs_vf_blade.png" width="323" alt="Creep compliance vs IN625 volume fraction for graded and homogeneous blades">
 </p>
-<p align="center"><em>Grading IN625 into an SS316 blade: with 30% IN625, the optimized graded blade nearly matches the performance of pure IN625 and has about half the creep compliance of a uniform 30% blend.</em></p>
+<p align="center"><em>Grading IN625 into an SS316 blade: with 30% IN625, the optimized graded blade outperforms pure IN625 (creep compliance 5.20 vs 5.57 mJ) and has about half the creep compliance of a uniform 30% blend (10.98 mJ).</em></p>
 
 ## Highlights
 - **Nonlinear, history-dependent physics.** Norton power-law creep with explicit or implicit (local Newton return map) time integration, coupled to Arrhenius temperature dependence and steady-state nonlinear heat conduction.
@@ -70,20 +70,22 @@ GPU=1 ./run_all.sh 5_blade         # one step on a chosen GPU
 
 | Paper | Experiment | Folder | Wall time, desktop\* | Wall time, workstation‡ | Peak GPU memory\* |
 |---|---|---|---|---|---|
-| Sec. 4.1 | Creep vs elastic design; elastic designs over volume fraction; aggregate creep measures and energy balance | [`1_creep_elastic`](experiments/1_creep_elastic) | ~2 min† | ~1.5 min† | 3.9 GB |
-| Sec. 4.2 | Pareto front over volume fraction | [`2_pareto_vf`](experiments/2_pareto_vf) | ~0.9 h | ~0.8 h | 4.7 GB |
-| Sec. 4.3 | Thermal boundary conditions | [`3_thermal_creep`](experiments/3_thermal_creep) | ~0.5 h | ~0.4 h | 4.1 GB |
+| Sec. 4.1 | Creep vs elastic design at V\*=0.5; aggregate creep measures and energy balance | [`1_creep_elastic`](experiments/1_creep_elastic) | ~2 min†§ | ~1.5 min†§ | 3.9 GB |
+| Sec. 4.2 | Pareto front over volume fraction; elastic-compliance designs over the same volume fractions (optimized in step `1_creep_elastic`) and their evaluation under creep | [`2_pareto_vf`](experiments/2_pareto_vf) | ~0.9 h | ~0.8 h | 4.7 GB |
+| Sec. 4.3 | Thermal boundary conditions; cold-to-hot case with temperature-dependent E(T), k(T) and its cross-evaluation | [`3_thermal_creep`](experiments/3_thermal_creep) | ~0.5 h§ | ~0.4 h§ | 4.1 GB |
 | Sec. 4.4 | Load magnitude | [`4_load_magnitude`](experiments/4_load_magnitude) | ~0.5 h | ~0.4 h | 4.1 GB |
-| Sec. 4.5 | Graded IN625/SS316 blade | [`5_blade`](experiments/5_blade) | ~3.3 h | ~2.2 h | 5.7 GB |
+| Sec. 4.5 | Graded IN625/SS316 blade; homogeneous blends; mass and moment of inertia | [`5_blade`](experiments/5_blade) | ~3.3 h | ~2.2 h | 5.7 GB |
 | App. B | Verification (Abaqus, time step, sensitivities, mesh, solver tolerances) | [`appendix`](experiments/appendix) | ~0.3 h | ~0.4 h | 4.7 GB |
 
 \*Sequential `./run_all.sh` on a 24-core desktop with one 8 GB NVIDIA RTX 3070 (under WSL2) takes less than 6 hours in total. Peak GPU memory is for the whole device, including other processes. Under WSL2, set `XLA_PYTHON_CLIENT_ALLOCATOR=cuda_async` for the `5_blade` step, because the default allocator may intermittently result in an out-of-memory error on small GPUs (≤ 8 GB).
 
-†After `2_pareto_vf`, whose designs it reuses. The time is for the V\*=0.5 elastic design only; the step now also optimizes the elastic designs at the other volume fractions, evaluates them under creep with `experiments/2_pareto_vf/evaluate_elastic_designs.py` (`results/2_pareto_vf/pareto_comparison.csv`, Fig. 4) and writes `results/1_creep_elastic/creep_measures.csv`.
+†After `2_pareto_vf`, whose designs it reuses. The step optimizes the elastic designs at all volume fractions of Sec. 4.2, writes the creep measures to `results/1_creep_elastic/creep_measures.csv` and ends by evaluating the elastic designs under creep with `experiments/2_pareto_vf/evaluate_elastic_designs.py`. That script writes `results/2_pareto_vf/pareto_comparison.csv`, which Fig. 4 needs, so `./run_all.sh figures` requires both `2_pareto_vf` and `1_creep_elastic`.
 
-‡Shared 128-core workstation (AMD Threadripper PRO 7985WX) with two 96 GB NVIDIA RTX PRO 6000 Blackwell GPUs. Four streams ran concurrently, two per GPU: `5_blade` with 32 MKL threads, plus `2_pareto_vf`+`1_creep_elastic`, `3_thermal_creep`+`appendix` and `4_load_magnitude` with 24 threads each. Including the figures, the run took 2.2 hours in total. Each step's time includes slowdown from the other streams and from other users' jobs.
+‡Shared 128-core workstation (AMD Threadripper PRO 7985WX) with two 96 GB NVIDIA RTX PRO 6000 Blackwell GPUs. In this timing run, four streams ran concurrently, two per GPU: `5_blade` with 32 MKL threads, plus `2_pareto_vf`+`1_creep_elastic`, `3_thermal_creep`+`appendix` and `4_load_magnitude` with 24 threads each. This grouping was specific to the timing run; the `GPUS` mode of `run_all.sh` uses one stream per independent step. Including the figures, the run took 2.2 hours in total. Each step's time includes slowdown from the other streams and from other users' jobs.
 
-Two steps contain runs added for the revision of the paper. `3_thermal_creep` repeats the cold-to-hot case with the temperature-dependent E(T) and k(T) of IN625 (`optimize_thermal_boundary_conditions.py --temperature-dependent`, written to `results/3_thermal_creep/data_creep_cold_hot_tdep_0.3_flex/`) and analyses both cold-to-hot designs under both property models (`evaluate_temperature_dependent_properties.py`). `5_blade` writes the mass and moment of inertia of every blade design to `results/5_blade/mass_inertia.csv` (`mass_inertia.py`).
+§The listed times for `1_creep_elastic` and `3_thermal_creep` do not include the elastic designs at the other volume fractions and the temperature-dependent runs, which add roughly 5 min and 10 min on the workstation.
+
+`3_thermal_creep` also optimizes the cold-to-hot case with the temperature-dependent E(T) and k(T) of IN625 (`optimize_thermal_boundary_conditions.py --temperature-dependent`, written to `results/3_thermal_creep/data_creep_cold_hot_tdep_0.3_flex/`) and analyses both cold-to-hot designs under both property models (`evaluate_temperature_dependent_properties.py`, summarized in `results/3_thermal_creep/tdep_comparison.json`). `5_blade` writes the mass and moment of inertia of every blade design to `results/5_blade/mass_inertia.csv` (`mass_inertia.py`).
 
 Each step logs to `logs/<step>.log` and appends its wall time, peak host memory and peak GPU memory to `results/timings.csv`.
 

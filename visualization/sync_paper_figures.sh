@@ -4,7 +4,8 @@
 #   visualization/sync_paper_figures.sh /path/to/creep-top-opt-paper/paper
 #
 # Run ./run_all.sh figures first. method_domain.pdf and BC_and_blade_mat_design.pdf are
-# drawn by hand and are copied as they are.
+# drawn by hand and are copied as they are. creep_optimization_flowchart_cropped.pdf needs
+# pdfcrop: run_all.sh skips the crop if it is not installed.
 set -euo pipefail
 
 dest=${1:?usage: sync_paper_figures.sh <paper directory>}
@@ -16,6 +17,7 @@ figures=(
     elastic_vs_creep.pdf
     pareto_vf_structures.pdf
     thermal_creep_shared_cbar.pdf
+    thermal_creep_tdep.pdf
     load_magnitude.pdf
     BC_and_blade_mat_design.pdf
     pareto_J_vs_vf_blade.pdf

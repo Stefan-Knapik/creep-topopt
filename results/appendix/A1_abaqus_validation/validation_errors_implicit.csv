@@ -1,0 +1,5 @@
+case,method,num_time_steps,quantity,reference,max_abs_err,max_rel_err
+tension,implicit,32,sigma_xx,analytical,4.906784697560539,0.015333702179876679
+tension,implicit,32,creep_strain_xx,analytical,3.066740435974421e-05,0.02682371078121355
+tension,implicit,1024,sigma_xx,analytical,0.1679208397318348,0.0005247526241619836
+tension,implicit,1024,creep_strain_xx,analytical,1.04950523833699e-06,0.0009179656891169259

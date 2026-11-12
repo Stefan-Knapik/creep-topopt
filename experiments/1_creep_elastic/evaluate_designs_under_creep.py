@@ -40,6 +40,7 @@ from toga.utils import clean_data_dir
 
 print(f"Clearing old results in {data_dir}...")
 clean_data_dir(data_dir)
+os.makedirs(data_dir, exist_ok=True)
 
 #%% Define materials and properties
 

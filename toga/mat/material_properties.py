@@ -104,9 +104,8 @@ def _build_property_model(property_name, material_names, config, data_dir=None):
         tables = _load_material_tables(material_names, property_name, data_dir)
         if not temperature_dependent:
             tables = [
-                (temperatures[:1], jnp.atleast_1d(_constant_property_value(table, property_name, name)))
-                for table, name in zip(tables, material_names)
-                for temperatures in [table[0]]
+                (t[:1], jnp.atleast_1d(_constant_property_value((t, v), property_name, name)))
+                for (t, v), name in zip(tables, material_names)
             ]
         return TableModel(tables, temperature_dependent=temperature_dependent)
 

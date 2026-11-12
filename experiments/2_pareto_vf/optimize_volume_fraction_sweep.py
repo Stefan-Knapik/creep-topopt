@@ -18,7 +18,7 @@ def run(vf, init_from=None):
     os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
     ROOT = Path(__file__).resolve().parents[2] # repository root
-    data_dir = str(ROOT / "results" / "2_pareto_vf" / f'data_creep_{int(vf*100)}')
+    data_dir = str(ROOT / "results" / "2_pareto_vf" / f'data_creep_{round(vf*100)}')
 
     import jax
     jax.config.update("jax_enable_x64", True)
@@ -215,7 +215,7 @@ def run(vf, init_from=None):
     if init_from is None:
         theta_ini = np.ones((len(mesh.cells), 1))
     else: # continuation: start from the final design of the run at volume fraction init_from
-        vtk_dir = ROOT / "results" / "2_pareto_vf" / f'data_creep_{int(init_from*100)}' / "vtk"
+        vtk_dir = ROOT / "results" / "2_pareto_vf" / f'data_creep_{round(init_from*100)}' / "vtk"
         design = meshio.read(sorted(vtk_dir.glob("sol_*.vtu"))[-1]).cell_data["geom"][0]
         theta_ini = np.asarray(design, dtype=float).reshape(-1, 1)
 

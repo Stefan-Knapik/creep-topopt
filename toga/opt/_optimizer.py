@@ -68,6 +68,7 @@ class Optimizer:
         Shapes are normalized so optimizer code can rely on canonical layouts:
         J scalar, dJ (N,), vc (m,), dvc (m, N). On the first call, ``m`` is
         inferred from the size of ``vc`` and ``lambda_map`` is built.
+        Raises FloatingPointError if any of the values is NaN or infinite.
         """
         vc_flat = np.asarray(vc, dtype=float).reshape(-1)
         if self.m is None:
@@ -79,6 +80,11 @@ class Optimizer:
         self._dJ = np.asarray(dJ, dtype=float).reshape(-1)
         self._vc = vc_flat
         self._dvc = np.asarray(dvc, dtype=float).reshape(self.m, self.N)
+        for name, value in (("objective", self._J), ("objective gradient", self._dJ),
+                            ("constraints", self._vc), ("constraint gradients", self._dvc)):
+            if not np.all(np.isfinite(value)):
+                raise FloatingPointError(
+                    f"Non-finite {name} passed to the optimizer at iteration {self.iteration}.")
         self._x_at_eval = self.desvars.copy()
 
     def _g_at(self, x):

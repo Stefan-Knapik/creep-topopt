@@ -1,4 +1,4 @@
-"""Sec. 4.4 (Fig. 6): creep optimization at traction magnitudes 100, 200 and 400 MPa.
+"""Sec. 4.4 (Fig. 7): creep optimization at traction magnitudes 100, 200 and 400 MPa.
 Writes results/4_load_magnitude/data_creep_1.0_{100.0,200.0,400.0}_0.5/."""
 
 def run(service_life, bc_magnitude, vf):

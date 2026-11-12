@@ -1,5 +1,6 @@
 """Appendix B.1, Fig. B1: TOGA vs Abaqus vs closed form for Norton stress relaxation. Writes
-figures/A1_creep_validation.{pdf,png} and results/appendix/A1_abaqus_validation/validation_errors*.csv."""
+figures/A1_creep_validation.{pdf,png} and results/appendix/A1_abaqus_validation/validation_errors_{explicit,implicit}.csv
+(implicit: against the closed form only, as Abaqus integrates creep explicitly here)."""
 from __future__ import annotations
 
 import math
@@ -222,6 +223,29 @@ def rel_dev(a, b, scale=None):
     return np.max(np.abs(a - b)), np.max(np.abs(a - b)) / denom
 
 
+def closed_form_errors(method):
+    """Deviation of the uniaxial case from the closed form, at the Abaqus increment size and at a
+    temporally converged step count."""
+    rows = []
+    for n_steps in (NUM_TIME_STEPS, NUM_TIME_STEPS_REF):
+        try:
+            sig_n, eps_n = load_toga("tension", method, n_steps)
+        except FileNotFoundError:
+            continue
+        s_ex, e_ex = analytic_relaxation(sig_n["time"].to_numpy())
+        a_s, r_s = rel_dev(sig_n["sigma_xx"], s_ex)
+        a_e, r_e = rel_dev(eps_n["creep_strain_xx"], e_ex)
+        rows += [
+            dict(case="tension", method=method, num_time_steps=n_steps,
+                 quantity="sigma_xx", reference="analytical",
+                 max_abs_err=a_s, max_rel_err=r_s),
+            dict(case="tension", method=method, num_time_steps=n_steps,
+                 quantity="creep_strain_xx", reference="analytical",
+                 max_abs_err=a_e, max_rel_err=r_e),
+        ]
+    return rows
+
+
 # --------------------------------------------------------------------------
 # Figure
 # --------------------------------------------------------------------------
@@ -293,27 +317,8 @@ def main(methods=("explicit", "implicit"), stem="A1_creep_validation",
             ax_eps.plot(t_fine, eps_ex, color="k", ls="--", lw=1.6)
             ax_eps.plot(t_fine, -0.5 * eps_ex, color="k", ls="--", lw=1.6)
 
-        if case == "tension":
-            # Deviation from the closed form, at the Abaqus increment size and
-            # at a temporally converged step count.
-            for n_steps in (NUM_TIME_STEPS, NUM_TIME_STEPS_REF):
-                for method in methods:
-                    try:
-                        sig_n, eps_n = load_toga(case, method, n_steps)
-                    except FileNotFoundError:
-                        continue
-                    t_n = sig_n["time"].to_numpy()
-                    s_ex, e_ex = analytic_relaxation(t_n)
-                    a_s, r_s = rel_dev(sig_n["sigma_xx"], s_ex)
-                    a_e, r_e = rel_dev(eps_n["creep_strain_xx"], e_ex)
-                    error_rows += [
-                        dict(case=case, method=method, num_time_steps=n_steps,
-                             quantity="sigma_xx", reference="analytical",
-                             max_abs_err=a_s, max_rel_err=r_s),
-                        dict(case=case, method=method, num_time_steps=n_steps,
-                             quantity="creep_strain_xx", reference="analytical",
-                             max_abs_err=a_e, max_rel_err=r_e),
-                    ]
+            for method in methods:
+                error_rows += closed_form_errors(method)
 
         ax_eps.set_ylabel(r"creep strain $\varepsilon^c$")
         ax_sig.set_ylabel(r"stress $\sigma$ [MPa]")
@@ -371,3 +376,11 @@ def main(methods=("explicit", "implicit"), stem="A1_creep_validation",
 if __name__ == "__main__":
     # Explicit only: Abaqus integrates creep explicitly here, so this is the like-for-like comparison.
     main(methods=("explicit",), stem="A1_creep_validation")
+
+    # The implicit scheme is compared with the closed form only.
+    df = pd.DataFrame(closed_form_errors("implicit"))
+    out = RESULTS / "validation_errors_implicit.csv"
+    df.to_csv(out, index=False)
+    print(f"saved {out}")
+    print()
+    print(df.to_string(index=False))

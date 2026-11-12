@@ -1,4 +1,4 @@
-"""Sec. 4.5 (Figs. 7-8, Table 2): IN625/SS316 compositional grading of a 3D turbine blade, swept over
+"""Sec. 4.5 (Figs. 8-9, Table 3): IN625/SS316 compositional grading of a 3D turbine blade, swept over
 the IN625 fraction V* = 0.1 ... 0.9. Writes results/5_blade/data_creep_{10,...,90}/.
 
     python optimize_graded_blade.py                              # the sweep of the paper
@@ -112,22 +112,6 @@ def run(vf, thermal_expansion=False):
 
     # %% Define the Structural FEA boundary conditions
 
-    # min by y, then min z, then min x
-    node_idx_to_fix_xz = onp.lexsort((mesh.points[:,0],
-                                    mesh.points[:,2],
-                                    mesh.points[:,1]))[0]
-
-    # min by y, then max z, then min x
-    node_idx_to_fix_x = onp.lexsort(( mesh.points[:,0],
-                                    -mesh.points[:,2],
-                                    mesh.points[:,1]))[0]
-
-    def point_xz(point, idx):
-        return np.isin(idx, node_idx_to_fix_xz)
-
-    def point_x(point, idx):
-        return np.isin(idx, node_idx_to_fix_x)
-
     def zero_disp(point):
         return 0.
 
@@ -144,8 +128,6 @@ def run(vf, thermal_expansion=False):
             def traction(u, x, *internal_vars_surface):
                 return -np.array([0., 30., 0.])
             return [traction]
-    # creep strain rate ~ proportional to traction magnitude ^ 5 since Norton n is about 5
-    # 2x traction magnitude causes roughly 32x creep strain rate
 
     problem_u = LoadedThermalCreep(mesh, vec=3, dim=3, ele_type=ele_type,
                                 dirichlet_bc_info=dirichlet_bc_info_u,

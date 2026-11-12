@@ -1,0 +1,71 @@
+{
+  "J_optimizer_final": {
+    "const": 19.849,
+    "tdep": 21.639
+  },
+  "J": {
+    "const_design_under_const_model": 19.84932647498772,
+    "const_design_under_tdep_model": 21.36654594299671,
+    "tdep_design_under_const_model": 20.558136695562098,
+    "tdep_design_under_tdep_model": 21.639141908809506
+  },
+  "density": {
+    "mean_abs_diff": 0.0636340061493928,
+    "max_abs_diff": 0.9989963632178915,
+    "fraction_diff_gt_0.5": 0.05595,
+    "fraction_diff_gt_0.1": 0.12695,
+    "fraction_solid_cells_shared": 0.887,
+    "mean_const": {
+      "all": 0.3099404047894652,
+      "halves_cold_to_hot": [
+        0.3428868304363139,
+        0.27699397914261653
+      ],
+      "quarters_cold_to_hot": [
+        0.4044774190027511,
+        0.2812962418698767,
+        0.12386186665467024,
+        0.43012609163056287
+      ]
+    },
+    "mean_tdep": {
+      "all": 0.3099537852422968,
+      "halves_cold_to_hot": [
+        0.35139397497177627,
+        0.2685135955128173
+      ],
+      "quarters_cold_to_hot": [
+        0.4136589160492659,
+        0.28912903389428657,
+        0.1226710942101654,
+        0.4143560968154692
+      ]
+    }
+  },
+  "temperature_K": {
+    "const_design": {
+      "max_abs_diff_tdep_vs_const_model": 75.65069044427116,
+      "mean_abs_diff_tdep_vs_const_model": 40.88487137960547,
+      "max_abs_diff_tdep_vs_const_model_solid": 75.65001954984609,
+      "mean_abs_diff_tdep_vs_const_model_solid": 30.01989445197078
+    },
+    "tdep_design": {
+      "max_abs_diff_tdep_vs_const_model": 75.65056825995396,
+      "mean_abs_diff_tdep_vs_const_model": 41.085772840065296,
+      "max_abs_diff_tdep_vs_const_model_solid": 75.65056825995396,
+      "mean_abs_diff_tdep_vs_const_model_solid": 30.507669984940243
+    },
+    "max_abs_diff_between_designs_own_model": 87.50012820429623
+  },
+  "E_MPa": {
+    "const_design": {
+      "min": 152498.34777331998,
+      "max": 206195.47356836
+    },
+    "tdep_design": {
+      "min": 152498.34777331998,
+      "max": 206195.47356836
+    },
+    "constant_model": 160000.0
+  }
+}

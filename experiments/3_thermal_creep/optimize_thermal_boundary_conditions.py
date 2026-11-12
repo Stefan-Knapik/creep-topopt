@@ -1,9 +1,10 @@
-"""Sec. 4.3 (Fig. 5): thermo-structural creep optimization at V* = 0.3 under cold, hot and cold-to-hot
+"""Sec. 4.3 (Figs. 5-6): thermo-structural creep optimization at V* = 0.3 under cold, hot and cold-to-hot
 temperature boundary conditions. Writes results/3_thermal_creep/data_creep_{cold,hot,cold_hot}_0.3_flex/.
 
-    python optimize_thermal_boundary_conditions.py                         # the three cases of the paper
+    python optimize_thermal_boundary_conditions.py                         # the three cases of Fig. 5
     python optimize_thermal_boundary_conditions.py --temperature-dependent # the cold-to-hot case alone with
-                                                                           # E(T) and k(T) of IN625, written to
+                                                                           # E(T) and k(T) of IN625 (Fig. 6),
+                                                                           # written to
                                                                            # data_creep_cold_hot_tdep_0.3_flex/
 """
 
@@ -210,7 +211,6 @@ def run(cold_temp, hot_temp, vf, case_name=None, temperature_dependent=False):
         aux['u_full'] = u_full
         aux['body_params'] = body_params
         aux['temperature'] = temperature
-        aux['reference_temperature'] = cold_temp
 
         evaluate_performance.counter += 1
         return f, (f, aux)

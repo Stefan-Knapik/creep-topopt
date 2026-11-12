@@ -24,6 +24,8 @@ class TableModel:
         returns: (M,) or scalar
         """
         x_query = jnp.asarray(x_query)
+        if x_query.shape[-1] != self.input_dim:
+            raise ValueError(f"x_query has last axis of length {x_query.shape[-1]}, expected {self.input_dim}.")
         n_materials = len(self.tables)
         fractions = x_query[..., :n_materials]
         if self.temperature_dependent:

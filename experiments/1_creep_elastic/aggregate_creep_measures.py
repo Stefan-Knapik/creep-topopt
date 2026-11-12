@@ -1,4 +1,4 @@
-"""Sec. 4.1: aggregate creep measures of the elastic and creep-aware V* = 0.5 designs, and the
+"""Sec. 4.1 (Table 1): aggregate creep measures of the elastic and creep-aware V* = 0.5 designs, and the
 energy balance of the dead load, J = D + dU, that links creep compliance to creep dissipation.
 Each design is analysed on its filtered density. Plane stress, thickness 1 mm; energies in mJ.
 Writes results/1_creep_elastic/creep_measures.csv."""
@@ -18,7 +18,6 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as np
-import numpy as onp
 import meshio
 
 from toga.mat import build_material_properties

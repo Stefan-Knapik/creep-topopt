@@ -6,7 +6,9 @@
 #   GPUS="1 2 3 4 5" ./run_all.sh        # everything, independent steps in parallel on GPUs 1-5
 #
 # Steps: 2_pareto_vf 1_creep_elastic 3_thermal_creep 4_load_magnitude 5_blade appendix figures
-# (1_creep_elastic reuses the creep-aware designs from 2_pareto_vf, so run that first.)
+# (1_creep_elastic reuses the creep-aware designs from 2_pareto_vf, so run that first. figures needs
+# both: results/2_pareto_vf/pareto_comparison.csv is written at the end of 1_creep_elastic.)
+# GPUS always runs every step, so it cannot be combined with step arguments.
 # Each script's output goes to logs/<step>.log; wall time, peak host RSS and peak GPU memory (whole
 # device, sampled each second into logs/<step>_gpu.csv) are appended to results/timings.csv.
 # TOGA_MAX_ITER=2 caps the MMA iterations of the optimization scripts (quick smoke test).
@@ -16,6 +18,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
 if [ -n "${GPUS:-}" ]; then
+    if [ $# -gt 0 ]; then
+        echo "GPUS (parallel mode) runs every step and takes no step arguments; use GPU=<id> $0 $* for selected steps." >&2
+        exit 1
+    fi
     # Parallel mode: one stream per GPU (cycling if fewer GPUs than streams), then figures.
     # PARDISO factorizes on the CPU, so the cores are split between streams to avoid oversubscription.
     STREAMS=("5_blade" "2_pareto_vf 1_creep_elastic" "3_thermal_creep" "4_load_magnitude" "appendix")

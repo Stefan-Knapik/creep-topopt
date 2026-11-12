@@ -1,9 +1,9 @@
-"""Sec. 4.3: effect of temperature-dependent E and k on the cold-to-hot design. The design optimized with
+"""Sec. 4.3 (Fig. 6): effect of temperature-dependent E and k on the cold-to-hot design. The design optimized with
 constant properties and the one optimized with E(T), k(T) of IN625 are each analysed once under both
 property models, and their density and temperature fields are compared.
 Each design is analysed as its optimizer analysed it: stored design variables -> density filter -> solver.
 Reads results/3_thermal_creep/data_creep_cold_hot{,_tdep}_0.3_flex/, writes
-results/3_thermal_creep/data_evaluation_tdep/comparison.json."""
+results/3_thermal_creep/tdep_comparison.json."""
 
 #%% Import modules
 
@@ -146,7 +146,7 @@ def load_filtered_density(run_name, ft):
     run_dir = ROOT / "results" / "3_thermal_creep" / run_name
     geom = meshio.read(max((run_dir / 'vtk').glob('sol_*.vtu'))).cell_data['geom'][0] # raw design variables
     rho = applyDensityFilter(ft, np.asarray(geom, dtype=np.float64).reshape(-1, 1)).reshape(-1)
-    J_final = float(open(run_dir / 'history.csv').read().split('\n')[-2].split(',')[1])
+    J_final = float(onp.genfromtxt(run_dir / 'history.csv', delimiter=',', names=True)['J'][-1])
     return rho, J_final
 
 def region_means(rho, x):
@@ -212,5 +212,5 @@ if __name__ == "__main__":
     out['E_MPa']['constant_model'] = 160e3
 
     print(json.dumps(out, indent=2))
-    with open(os.path.join(data_dir, 'comparison.json'), 'w') as f:
+    with open(ROOT / "results" / "3_thermal_creep" / "tdep_comparison.json", 'w') as f:
         json.dump(out, f, indent=2)
