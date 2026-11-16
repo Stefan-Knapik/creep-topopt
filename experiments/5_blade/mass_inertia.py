@@ -1,20 +1,26 @@
-"""Sec. 4.5: mass and moment of inertia of the graded blade designs and of the uniform blends.
+"""Sec. 4.5: mass and moment of inertia of the graded designs and of the uniform blends of a case.
 
-Reads the last .vtu of each results/5_blade/data_creep_{10,...,90}/ run and writes
-results/5_blade/mass_inertia.csv. The density of a blend follows the rule of mixtures of the
-`rho` column in toga/mat/material_data. The moment of inertia is taken about the chordwise (z) axis
-through the root, I = int rho (x^2 + y^2) dV, with y the spanwise distance from the root.
+Reads results/5_blade/<study>/<case>/summary rows (scalars.csv of every V<bound>/ run, written by
+optimize_graded_blade.py from the filtered composition) and homogeneous_blends.csv, and writes
+<case>/mass_inertia.csv. The moment of inertia is about the rotation axis (parallel to z through
+(x, y) = (0, -r_hub)); the density of a blend follows the rule of mixtures. As a check the mass is
+recomputed from the last .vtu (mat_filtered) by 2x2x2 Gauss quadrature.
+
+    python mass_inertia.py results/5_blade/deploy/<case>
 """
+import argparse
 import csv
+import json
 from pathlib import Path
 
 import meshio
 import numpy as np
 
+from summarize import hex8_volumes
+
 ROOT = Path(__file__).resolve().parents[2]
-RESULTS = ROOT / "results" / "5_blade"
 MATERIAL_DATA = ROOT / "toga" / "mat" / "material_data"
-ALLOYS = ["IN625", "SS316"]  # order of the `mat` columns in the .vtu
+ALLOYS = ["IN625", "SS316"]  # order of the composition columns
 
 
 def alloy_density(name):
@@ -23,57 +29,44 @@ def alloy_density(name):
         return float(next(csv.DictReader(f, skipinitialspace=True))["rho"])
 
 
-def hex8_volume_integrals(points, cells):
-    """Per-cell volume and integral of x^2 + y^2, by 2x2x2 Gauss quadrature."""
-    g = 1.0 / np.sqrt(3.0)
-    corners = np.array([[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
-                        [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], dtype=float)
-    x = points[cells]  # (cells, 8, 3)
-    volume = np.zeros(len(cells))
-    second_moment = np.zeros(len(cells))
-    for xi in corners * g:
-        shape = np.prod(1.0 + corners * xi, axis=1) / 8.0  # (8,)
-        dshape = np.stack([corners[:, d] * np.prod(np.delete(1.0 + corners * xi, d, axis=1), axis=1) / 8.0
-                           for d in range(3)], axis=1)  # (8, 3)
-        jac = np.einsum("cni,nj->cij", x, dshape)
-        det = np.abs(np.linalg.det(jac))
-        xq = np.einsum("n,cni->ci", shape, x)
-        volume += det
-        second_moment += det * (xq[:, 0] ** 2 + xq[:, 1] ** 2)
-    return volume, second_moment
-
-
 def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("case", type=Path)
+    args = parser.parse_args()
     rho = np.array([alloy_density(a) for a in ALLOYS])
     rows = []
-    volume = second_moment = None
-
-    for vf in range(10, 100, 10):
-        vtu = sorted((RESULTS / f"data_creep_{vf}" / "vtk").glob("sol_*.vtu"))[-1]
-        mesh = meshio.read(vtu)
-        if volume is None:
-            cells = next(block.data for block in mesh.cells if block.type == "hexahedron")
-            volume, second_moment = hex8_volume_integrals(np.asarray(mesh.points, dtype=float), cells)
-        composition = np.asarray(mesh.cell_data["mat"][0], dtype=float)  # (cells, 2), rows sum to one
-        cell_rho = composition @ rho
-        rows.append(("graded", vf / 100, composition[:, 0] @ volume / volume.sum(),
-                     cell_rho @ volume, cell_rho @ second_moment))
-
-    for i in range(11):
-        w = i / 10
-        blend_rho = w * rho[0] + (1 - w) * rho[1]
-        rows.append(("homogeneous", w, w, blend_rho * volume.sum(), blend_rho * second_moment.sum()))
-
-    out = RESULTS / "mass_inertia.csv"
+    volume = None
+    for run in sorted(args.case.glob("V*")):
+        if not (run / "scalars.csv").exists():
+            continue
+        last = list(csv.DictReader(open(run / "scalars.csv")))[-1]
+        vf = json.load(open(run / "case.json"))['vf']
+        row = {'design': 'graded', 'V_star': vf, 'IN625_fraction': float(last['IN625_fraction']),
+               'mass_g': float(last['mass_g']), 'inertia_g_mm2': float(last['inertia_g_mm2']), 'J': float(last['J'])}
+        vtus = sorted((run / "vtk").glob("sol_*.vtu"))
+        if vtus:
+            mesh = meshio.read(vtus[-1])
+            if volume is None:
+                cells = next(block.data for block in mesh.cells if block.type == "hexahedron")
+                volume = hex8_volumes(np.asarray(mesh.points, dtype=float), cells)
+            composition = np.asarray(mesh.cell_data["mat_filtered"][0], dtype=float)
+            row['mass_g_from_vtu'] = float((composition @ rho) @ volume)
+            row['IN625_fraction_from_vtu'] = float(composition[:, 0] @ volume / volume.sum())
+        rows.append(row)
+    homo = args.case / "homogeneous_blends.csv"
+    if homo.exists():
+        for r in csv.DictReader(open(homo)):
+            rows.append({'design': 'homogeneous', 'V_star': float(r['V_star']), 'IN625_fraction': float(r['IN625_fraction']),
+                         'mass_g': float(r['mass_g']), 'inertia_g_mm2': float(r['inertia_g_mm2']), 'J': float(r['J'])})
+    keys = list(dict.fromkeys(k for r in rows for k in r))
+    out = args.case / "mass_inertia.csv"
     with open(out, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["design", "V_star", "IN625_fraction", "mass_g", "inertia_g_mm2"])
+        writer = csv.DictWriter(f, fieldnames=keys)
+        writer.writeheader()
         writer.writerows(rows)
-
-    print(f"blade volume {volume.sum():.1f} mm^3")
-    print(f"{'design':12s} {'V*':>4s} {'IN625':>7s} {'mass [g]':>9s} {'I [g mm^2]':>11s}")
-    for design, vf, fraction, mass, inertia in rows:
-        print(f"{design:12s} {vf:4.1f} {fraction:7.4f} {mass:9.3f} {inertia:11.1f}")
+    print(f"{'design':12s} {'V*':>4s} {'IN625':>7s} {'mass [g]':>9s} {'I [g mm^2]':>12s} {'J [mJ]':>10s}")
+    for r in rows:
+        print(f"{r['design']:12s} {r['V_star']:4.1f} {r['IN625_fraction']:7.4f} {r['mass_g']:9.3f} {r['inertia_g_mm2']:12.1f} {r['J']:10.5g}")
     print(f"written to {out}")
 
 

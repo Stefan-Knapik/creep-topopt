@@ -41,6 +41,11 @@ venv/
 *.lof
 *.lot
 
-# Rotating-blade study: coarse verification mesh and trial runs
-results/6_blade_centrifugal/mesh/
-results/6_blade_centrifugal/**/coarse/
+# Blade study: generated meshes, exploration and probe runs, results of earlier versions
+results/5_blade/mesh/
+results/5_blade/explore*/
+results/5_blade/probe/
+results/5_blade/smoke/
+results/**/design_final.npy
+results/_pre_consolidation/
+figures/5_blade_exploration/

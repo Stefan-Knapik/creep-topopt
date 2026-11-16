@@ -1,35 +1,44 @@
-"""Sec. 4.5 (Figs. 8-9, Table 3): IN625/SS316 compositional grading of a 3D turbine blade, swept over
-the IN625 fraction V* = 0.1 ... 0.9. Writes results/5_blade/data_creep_{10,...,90}/.
+"""Sec. 4.5: IN625/SS316 compositional grading of a rotating turbine blade.
 
+The blade creeps under the centrifugal force of its own mass (optionally with a tip shroud) with the
+root at 750 C and the tip at 800 C, thermal expansion on, implicit time integration. The optimizer
+minimizes the creep compliance J = W_ext(u_end) - W_ext(u_0) for an IN625 fraction of at most V*;
+the composition is density-filtered (blade_problem.py).
 
-    python optimize_graded_blade.py --vf 0.3   # a single volume fraction
+    python optimize_graded_blade.py --fine --study deploy --vf 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9
+                                                    # the paper setting: 50,336 HEX8, 10 steps, 50 MMA iterations
+    TOGA_MAX_ITER=15 python optimize_graded_blade.py --steps 2 --root-stress 80 --shroud 0.3 --hours 30 --vf 0.3
+                                                    # exploration: 25k mesh, 2 time steps, 15 iterations
+    python optimize_graded_blade.py ... --radius-mm 0            # no filter
+    python optimize_graded_blade.py ... --no-expansion           # thermal expansion off
+    python optimize_graded_blade.py ... --alpha-mode secant --cte-mismatch-scale 0.5 --init perturbed --tag x
+
+Writes results/5_blade/<study>/<case>/V<bound %>/ (blade_problem.case_name): case.json, history.csv,
+scalars.csv, walltime.csv, design_final.npy (raw design variables), vtk/sol_XXX.vtu, and DONE or FAILED.
 """
+import os
+import sys
+from pathlib import Path
 
-def run(vf):
+
+def run(vf=0.3, root_stress=100.0, shroud=0.0, hours=100.0, radius_mm=None, num_time_steps=None, elem_size=None,
+        fine=False, alpha_mode="tangent", expansion=True, cte_mismatch_scale=1.0, init="uniform", tag=None,
+        study="explore", t_root=None, t_hot=None, r_hub=None, max_iter=None, output_freq=5):
 
     #%% Import modules
 
-    import os
-    from pathlib import Path
     os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3") # hide PJRT logs
     # Pass large closed-over arrays (mesh data, sparsity indices) to XLA as arguments instead of
     # embedding them as constants. Must be set before importing jax.
     os.environ.setdefault("JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS", "1")
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
-    ROOT = Path(__file__).resolve().parents[2] # repository root
-    data_dir = str(ROOT / "results" / "5_blade" / f'data_creep_{round(vf*100)}')
 
     import jax
     jax.config.update("jax_enable_x64", True)
 
-    # Persistent JAX compilation cache - skips recompilation on repeat runs
-    _cache_dir = os.path.join(data_dir, 'jax_cache')
-    jax.config.update("jax_compilation_cache_dir", _cache_dir)
-    jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.0)
-
     import jax.numpy as np
     import numpy as onp
-    import meshio
+    import json
     import time
     _t_script_start = time.perf_counter()
 
@@ -38,172 +47,105 @@ def run(vf):
     toga.logger.setLevel(logging.DEBUG)
 
     from toga import logger
-    from toga.mat import build_material_properties
-    from toga.mat.material_properties import vmap_design_to_physical
-    from toga.fem.generate_mesh import get_meshio_cell_type, Mesh
-    from toga.physics.thermal import NonlinearThermal
-    from toga.physics.thermal_creep_explicit import ThermalCreepExplicit
-    from toga.fem.solver import ad_wrapper
     from toga.opt import MMA
-    from toga.utils import clean_data_dir, remove_orphan_nodes, quad_to_cell_average, save_vtu, timer, oom_hint
+    from toga.utils import clean_data_dir, quad_to_cell_average, save_vtu, timer, oom_hint
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import blade_problem as bp
+
+    radius_mm = bp.RADIUS_MM if radius_mm is None else radius_mm
+    num_time_steps = bp.NUM_TIME_STEPS if num_time_steps is None else num_time_steps
+    elem_size = bp.ELEM_SIZE if elem_size is None else elem_size
+    t_root = bp.T_ROOT if t_root is None else t_root
+    t_hot = bp.T_HOT if t_hot is None else t_hot
+    r_hub = bp.R_HUB if r_hub is None else r_hub
+    max_iter = int(os.environ.get('TOGA_MAX_ITER', 50)) if max_iter is None else max_iter
+
+    data_dir = str(bp.run_dir(study, vf, root_stress=root_stress, shroud=shroud, hours=hours, radius_mm=radius_mm,
+                              mesh=bp.mesh_name(elem_size, fine), num_time_steps=num_time_steps, alpha_mode=alpha_mode,
+                              expansion=expansion, cte_mismatch_scale=cte_mismatch_scale, init=init, tag=tag))
+
+    # Persistent JAX compilation cache of this run - skips recompilation when the run is repeated
+    jax.config.update("jax_compilation_cache_dir", os.path.join(data_dir, 'jax_cache'))
+    jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.0)
 
     print(f"Clearing old results in {data_dir}...")
     clean_data_dir(data_dir)
 
-    #%% Define materials and properties
+    #%% Thermal and creep problems of the rotating blade (blade_problem.py)
 
-    material_names = ["IN625", "SS316"]
+    blade = bp.build_blade(t_root=t_root, t_hot=t_hot, r_hub=r_hub, root_stress=root_stress, shroud=shroud,
+                           end_time=3600.0 * hours, mesh_file=bp.FINE_MESH if fine else None, elem_size=elem_size,
+                           num_time_steps=num_time_steps, expansion=expansion, alpha_mode=alpha_mode,
+                           cte_mismatch_scale=cte_mismatch_scale, radius_mm=radius_mm)
+    problem_u = blade.problem_u
+    logger.info(f"root {t_root:.0f} C, tip {t_hot:.0f} C; hub radius {r_hub:.0f} mm, nominal root stress "
+                f"{root_stress:.0f} MPa: {blade.rpm:.0f} rpm, tip speed {blade.tip_speed:.0f} m/s; shroud share "
+                f"{shroud:.0%} (tip traction {blade.tip_traction:.1f} MPa, {blade.shroud_mass:.1f} g); {hours:g} h in "
+                f"{num_time_steps} steps; filter radius {radius_mm} mm; expansion {alpha_mode if expansion else 'off'}; "
+                f"{blade.num_cells} cells")
 
-    # Each property is piecewise linear in temperature between the tabulated rows of an alloy and
-    # follows the rule of mixtures in composition. Thermal expansion is left out (no "alpha" model):
-    # with it, the explicit scheme used here is unstable at 10 steps.
-    property_configs = {
-        "k":     {"model": "table"},
-        "E":     {"model": "table"},
-        "logA":  {"model": "table", "temperature_dependent": False},
-        "n":     {"model": "table", "temperature_dependent": False},
-        "Q":     {"model": "table", "temperature_dependent": False},
-        "cost":  {"model": "table", "temperature_dependent": False},
-    }
-    material_properties = build_material_properties(
-        material_names=material_names,
-        property_configs=property_configs,)
-
-    #%% Define the mesh domain
-
-    mesh_file = str(ROOT / "toga/mesh/blade/blade_050_000.inp")
-
-    ele_type = 'HEX8'
-    cell_type = get_meshio_cell_type(ele_type)
-    meshio_mesh = meshio.read(mesh_file)
-    compact_points, compact_cells, reorder_nodes = remove_orphan_nodes(meshio_mesh, cell_type, return_index_map=True)
-    mesh = Mesh(compact_points, compact_cells)
-
-    #%% Define the Thermal FEA boundary conditions
-
-    bottom_node_indices = reorder_nodes(meshio_mesh.point_sets['bottom'])
-    top_node_indices = reorder_nodes(meshio_mesh.point_sets['top'])
-
-    def bottom(point, i): # returns true for nodes at the bottom of the blade (y=0mm)
-        return np.isin(i, bottom_node_indices)
-
-    def top(point, i): # returns true for nodes at the top of the blade (y=50mm)
-        return np.isin(i, top_node_indices)
-
-    cold_temp_value = 600. # temperature in Celsius for bottom
-    hot_temp_value = 800. # temperature in Celsius for top
-
-    def cold_temp(point):
-        return cold_temp_value
-
-    def hot_temp(point):
-        return hot_temp_value
-
-    dirichlet_bc_info_T = [[bottom, top], # callables that return true for nodes where BC is applied
-                        [0,0],         # components/dimensions of the solution the BC is applied to
-                        [cold_temp, hot_temp]] # callables that returns the value of the BC at the given point
-
-    problem_T = NonlinearThermal(mesh, vec=1, dim=3, ele_type=ele_type,
-                                dirichlet_bc_info=dirichlet_bc_info_T,
-                                additional_info=(material_properties,),)
-
-    # %% Define the Structural FEA boundary conditions
-
-    def zero_disp(point):
-        return 0.
-
-    # Dirichlet BCs - prescribe displacement
-    dirichlet_bc_info_u = [[bottom]*3, # callables that return true for nodes where BC is applied
-                        [0, 1, 2],  # components/dimensions of the solution the BC is applied to (x,y,z)
-                        [zero_disp]*3] # callables that returns the value of the BC at the given point
-
-    # Neumann BCs - prescribe forces (tractions)
-    location_fns_u = [top]
-
-    class LoadedThermalCreep(ThermalCreepExplicit):
-        def get_surface_maps(self):
-            def traction(u, x, *internal_vars_surface):
-                return -np.array([0., 30., 0.])
-            return [traction]
-
-    problem_u = LoadedThermalCreep(mesh, vec=3, dim=3, ele_type=ele_type,
-                                dirichlet_bc_info=dirichlet_bc_info_u,
-                                location_fns=location_fns_u,
-                                additional_info=(material_properties,),)
-
-    #%% Define the simulation
-
-    solver_options = {'pardiso_solver': {}}
-
-    fwd_pred_T = ad_wrapper(problem_T,
-                            solver_options=solver_options,
-                            adjoint_solver_options=solver_options)
-
-    end_time = 3600 * 100 # 100 hours
-    num_time_steps = 10
-
-    def fwd_pred_u(theta, temperature, reference_temperature):
-        full_sol, body_params = problem_u.forward_solve(
-            theta=theta,
-            T=temperature,
-            reference_T=reference_temperature,
-            end_time=end_time,
-            num_time_steps=num_time_steps,
-            fwd_solver_options=solver_options,
-            vjp_solver_options=solver_options,
-            save_history=False, # body_params at the first and last step only (saves GPU memory)
-        )
-        return full_sol[0], body_params
-
-    def fwd_pred(theta):
-        T = fwd_pred_T(theta)[0]
-        reference_temperature = cold_temp_value
-        u_full, body_params = fwd_pred_u(theta, T, reference_temperature)
-        # T is a jaxArray(num_nodes,1)
-        # u_full is a jaxArray(num_time_steps + 1, num_nodes, vec)
-        # body_params is a tuple of len==5, (sigmas, eps_creep, theta, T_quad, ref_T_quad),
-        #    shapes((time+1, cells, quads, vec, dim),
-        #           (time+1, cells, quads, vec, dim),
-        #           (time+1, cells, quads, num_mat+1),
-        #           (time+1, cells, quads, 1),
-        #           (time+1, cells, quads, ))
-        return T, u_full, body_params
+    os.makedirs(data_dir, exist_ok=True)
+    with open(os.path.join(data_dir, 'case.json'), 'w') as cf:
+        json.dump({'t_root': t_root, 't_hot': t_hot, 'r_hub': r_hub, 'root_stress': root_stress, 'vf': vf,
+                   'shroud': shroud, 'hours': hours, 'fine': fine, 'elem_size': elem_size,
+                   'num_time_steps': num_time_steps, 'radius_mm': radius_mm, 'expansion': expansion,
+                   'alpha_mode': alpha_mode, 'cte_mismatch_scale': cte_mismatch_scale, 'init': init, 'tag': tag,
+                   'study': study, 'max_iter': max_iter,
+                   'tip_traction': blade.tip_traction, 'shroud_mass_g': blade.shroud_mass,
+                   'num_cells': blade.num_cells, 'rpm': blade.rpm, 'omega': blade.omega,
+                   'tip_speed_m_s': blade.tip_speed}, cf, indent=1)
 
     #%% Defining the forward pass with objective and constraints
 
     vf_constraint = vf
 
-    def evaluate_performance(params, *args):
-        f, aux = {}, {}
+    def objective(params):
+        f, aux = blade.evaluate(params)
+        return f['J'], (f, aux)
 
-        params = np.concatenate((np.ones((len(params), 1)), params), axis=1)
+    def constraints(params):
+        # bound on the IN625 content of the filtered (physical) composition
+        return {'IN vf': blade.in625_fraction(params) / vf_constraint - 1.0}
 
-        params_physical = params
+    # One adjoint pass for J; the constraint is explicit in the composition.
+    objective_grad = jax.jit(jax.value_and_grad(objective, has_aux=True))
+    constraints_grad = jax.jit(lambda params: (constraints(params), jax.jacrev(constraints)(params)))
 
-        T, u_full, body_params = fwd_pred(params_physical)
-
-        def compute_creep_compliance(u_full):
-            sol_0 = u_full[0] # initial displacement field (num_nodes, vec)
-            sol_final = u_full[-1] # final displacement field (num_nodes, vec)
-            compliance_0 = problem_u.compute_compliance(sol_0)
-            compliance_final = problem_u.compute_compliance(sol_final)
-            creep_compliance = compliance_final - compliance_0
-            return creep_compliance
-
-        f['J'] = compute_creep_compliance(u_full)
-        f['IN vf'] = problem_u.compute_volume_fraction_of_material(params, mat_idx=0) / vf_constraint - 1.0
-
-        aux['u_full'] = u_full
-        aux['body_params'] = body_params
-        aux['T'] = T
-
-        evaluate_performance.counter += 1
-        return f, (f, aux)
-    evaluate_performance.counter = 0
-
-    evaluate_performance_grad = jax.jit(jax.jacrev(evaluate_performance, has_aux=True))
+    def evaluate_performance_grad(params):
+        (_, (scalars, aux)), dJ = objective_grad(params)
+        g, dg = constraints_grad(params)
+        F = {'J': scalars['J'], **g}
+        dF = {'J': dJ, **dg}
+        aux['scalars'] = scalars
+        return dF, (F, aux)
 
     #%% Define the output solution function
+
+    def save_fields(data_path, i, theta, dF, aux):
+        logger.info(f"Saving solution for iteration {i:d}...")
+        mat_raw = onp.asarray(theta / np.sum(theta, axis=1, keepdims=True))   # normalized design
+        mat_filtered = onp.asarray(aux['theta'][:, 1:])                       # what the physics sees
+        u_full = aux['u_full']
+        body_params = aux['body_params']
+
+        point_infos = [
+            ('U_final', u_full[-1]),
+            ('U_0', u_full[0]),
+            ('T', onp.asarray(aux['T'])),
+        ]
+
+        cell_infos = [
+            ('mat', mat_raw),
+            ('mat_filtered', mat_filtered),
+            ('creep_strain_final', quad_to_cell_average(problem_u.fe, body_params[1][-1])),
+            ('stress_final', quad_to_cell_average(problem_u.fe, body_params[0][-1])),
+            ('stress_0', quad_to_cell_average(problem_u.fe, body_params[0][0])),
+            ('dJ_dmat', dF['J'].reshape(-1, mat_raw.shape[1])),
+        ]
+
+        save_vtu(problem_u.fe, os.path.join(data_path, f'vtk/sol_{i:03d}.vtu'), cell_infos=cell_infos, point_infos=point_infos)
+        onp.save(os.path.join(data_path, 'design_final.npy'), onp.asarray(theta))   # raw design variables
 
     def output_sol(data_path, theta, F, dF, aux):
         os.makedirs(data_path, exist_ok=True)
@@ -218,66 +160,41 @@ def run(vf):
             vc_str = '\t,'.join(f'{float(F[k]):.4f}' for k in constraint_keys)
             hf.write(f'{i:4},\t{float(F["J"]):.5g},\t{vc_str}\n')
 
-        u_full = aux['u_full']
-        max_disp_0 = float(onp.max(onp.abs(u_full[0])))
-        max_disp_final = float(onp.max(onp.abs(u_full[-1])))
-        disp_log_path = os.path.join(data_path, 'displacement.csv')
+        # J, IN625 fraction, mass, inertia, stress, creep-strain and temperature scalars of every iterate
+        scalars_path = os.path.join(data_path, 'scalars.csv')
         if i == 0:
-            with open(disp_log_path, 'w') as df:
-                df.write('iter,\tmax_disp_initial,\tmax_disp_final\n')
-        with open(disp_log_path, 'a') as df:
-            df.write(f'{i:4},\t{max_disp_0:.6g},\t{max_disp_final:.6g}\n')
+            with open(scalars_path, 'w') as sf:
+                sf.write('iter,' + ','.join(bp.SCALAR_KEYS) + '\n')
+        with open(scalars_path, 'a') as sf:
+            sf.write(f'{i},' + ','.join(f'{float(aux["scalars"][k]):.10g}' for k in bp.SCALAR_KEYS) + '\n')
 
         if i % optimization_params['output_freq'] == 0:
-            logger.info(f"Saving solution for iteration {i:d}...")
-
-            theta = onp.concatenate((onp.ones((len(theta), 1)), theta), axis=1)
-
-            geom, mat = vmap_design_to_physical(theta)
-            T = onp.asarray(aux['T'])
-            u_full = aux['u_full']
-            body_params = aux['body_params']
-
-            vtu_path = os.path.join(data_path, f'vtk/sol_{i:03d}.vtu')
-            os.makedirs(os.path.dirname(vtu_path), exist_ok=True)
-
-            point_infos = [
-                ('U_final', u_full[-1]),
-                ('U_0', u_full[0]),
-                ('T', T),
-            ]
-
-            cell_infos = [
-                ('geom', geom),
-                ('mat', mat),
-                ('creep_strain_final', quad_to_cell_average(problem_u.fe, body_params[1][-1])),
-                ('stress_final', quad_to_cell_average(problem_u.fe, body_params[0][-1])),
-                ('stress_0', quad_to_cell_average(problem_u.fe, body_params[0][0])),
-                ('dJ_dmat', dF['J'].reshape(-1, mat.shape[1])),
-            ]
-
-            save_vtu(problem_u.fe, vtu_path, cell_infos=cell_infos, point_infos=point_infos)
+            save_fields(data_path, i, theta, dF, aux)
 
         output_sol.counter += 1
     output_sol.counter = 0
 
     # %% Define the optimization problem and solve it
 
-    theta_ini = np.ones((len(mesh.cells), len(material_names))) * (1.0 / len(material_names))
+    theta_ini = bp.homogeneous(blade.num_cells, vf_constraint) # uniform blend at the IN625 bound
+    if init == "perturbed":
+        # same blend on average, +-0.1 of noise in the IN625 fraction: is the layout start-dependent?
+        noise = onp.random.default_rng(0).uniform(-0.1, 0.1, blade.num_cells)
+        in625 = onp.clip(vf_constraint + noise, 0.02, 0.98)
+        theta_ini = np.asarray(onp.stack((in625, 1.0 - in625), axis=1))
 
     optimization_params = {
-        'max_iter': int(os.environ.get('TOGA_MAX_ITER', 50)),
+        'max_iter': max_iter,
         'change_tol': 1e-5,
         'fun_tol': 1e-5,
         'move': 0.1,
-        'output_freq': 1,
+        'output_freq': output_freq,
     }
 
     def optimize(fe, theta_ini, optimization_params, data_sub_dir=None):
         data_folder = os.path.join(data_dir, data_sub_dir) if data_sub_dir else data_dir
 
-        # The composition field is not filtered: the geometry is fixed and intermediate
-        # compositions are physical blends, so there is no checkerboarding to suppress.
+        # The filter acts on the normalized composition inside blade.evaluate (blade_problem.py).
 
         theta = theta_ini
 
@@ -292,6 +209,7 @@ def run(vf):
         )
 
         loop = 0
+        J_scale = None
 
         os.makedirs(data_folder, exist_ok=True)
         walltime_log_path = os.path.join(data_folder, 'walltime.csv')
@@ -304,27 +222,44 @@ def run(vf):
                 with timer() as t_eval, oom_hint():
                     dF, (F, aux) = evaluate_performance_grad(theta)
 
-                J = F['J'].reshape(1,)
-                dJ = dF['J'].reshape(-1)
+                if not (onp.isfinite(float(F['J'])) and onp.all(onp.isfinite(onp.asarray(dF['J'])))):
+                    with open(os.path.join(data_folder, 'FAILED'), 'w') as ff:
+                        ff.write(f'non-finite J or dJ at MMA iteration {loop}\n')
+                    raise FloatingPointError(f"non-finite J or dJ at MMA iteration {loop}")
+
+                # The optimizer sees J scaled to 10 at the initial design: J spans orders of magnitude
+                # over the cases, and MMA weighs the objective against the constraint in absolute terms.
+                if J_scale is None:
+                    J_scale = 10.0 / abs(float(F['J']))
+                J = F['J'].reshape(1,) * J_scale
+                dJ = dF['J'].reshape(-1) * J_scale
                 vc = np.array([F[key] for key in F if key != 'J']).reshape(-1)
                 dvc = np.array([dF[key] for key in dF if key != 'J']).reshape(len(vc), -1)
-                logger.debug(f"J = {J}; vc = {vc.ravel()}")
-                logger.debug(f"dJ.shape = {dJ.shape}    dJ.max = {dJ.max()}    dJ.min = {dJ.min()}")
-                logger.debug(f"dvc.shape = {dvc.shape}    dvc.max = {dvc.max()}    dvc.min = {dvc.min()}")
+                logger.debug(f"J = {F['J']}; vc = {vc.ravel()}")
 
                 with timer() as t_save:
                     output_sol(data_folder, theta, F, dF, aux)
 
                 with timer() as t_optimizer:
                     optimizer.iter(onp.array(J), onp.array(dJ), onp.array(vc), onp.array(dvc))
-                    theta = np.array(optimizer.desvars.reshape(theta.shape))
+                    theta_new = np.array(optimizer.desvars.reshape(theta.shape))
+                    last_state = (theta, F, dF, aux)
+                    theta = theta_new
 
             with open(walltime_log_path, 'a') as wf:
                 wf.write(f'iter_{loop},\t{t_eval:.3f},\t{t_save:.3f},\t{t_optimizer:.3f},\t{t_iter:.3f}\n')
 
-            logger.info(f'MMA iter {loop:d}; J={float(J[0]):.5g}; vc={vc.ravel()}; '
+            logger.info(f'MMA iter {loop:d}; J={float(F["J"]):.5g}; vc={vc.ravel()}; '
                         f'change={optimizer.change:.3e}; change_f={optimizer.change_f:.3e}')
             loop += 1
+
+        # the last evaluated design is always written (the .vtu files are otherwise every few iterations)
+        if (loop - 1) % optimization_params['output_freq'] != 0:
+            theta_last, _, dF_last, aux_last = last_state
+            save_fields(data_folder, loop - 1, theta_last, dF_last, aux_last)
+
+        with open(os.path.join(data_folder, 'DONE'), 'w') as ff:
+            ff.write(f'{loop} MMA iterations\n')
 
     optimize(problem_u.fe, theta_ini, optimization_params)
 
@@ -336,14 +271,45 @@ def _release():
     jax.clear_caches()
     gc.collect()
 
+
+def add_case_arguments(parser):
+    """Arguments that define a case, shared by the scripts of this folder."""
+    parser.add_argument("--root-stress", type=float, default=100.0,
+                        help="nominal root stress [MPa], which sets the speed (default 100)")
+    parser.add_argument("--shroud", type=float, default=0.0,
+                        help="share of the nominal root stress that comes from a tip shroud (radial traction on the tip)")
+    parser.add_argument("--hours", type=float, default=100.0, help="hold time [h] (default 100)")
+    parser.add_argument("--radius-mm", type=float, default=None,
+                        help="filter radius of the composition [mm] (default 1.4; 0: no filter)")
+    parser.add_argument("--steps", type=int, default=None, help="number of time steps (default 10)")
+    parser.add_argument("--elem-size", type=float, default=None,
+                        help="mesh size [mm]: 0.72 (default, 25k HEX8), 0.98 (10.8k), 1.5 (3k)")
+    parser.add_argument("--fine", action="store_true", help="use the paper mesh (50,336 HEX8)")
+    parser.add_argument("--alpha-mode", choices=["tangent", "table", "secant"], default="tangent",
+                        help="thermal-expansion model (blade_problem.ThermalExpansion)")
+    parser.add_argument("--no-expansion", action="store_true", help="switch thermal expansion off")
+    parser.add_argument("--cte-mismatch-scale", type=float, default=1.0,
+                        help="scale of the difference between the alloys' expansion coefficients")
+    parser.add_argument("--t-root", type=float, default=None, help="root temperature [C] (default 750)")
+    parser.add_argument("--t-hot", type=float, default=None, help="tip temperature [C] (default 800)")
+    parser.add_argument("--r-hub", type=float, default=None, help="hub radius [mm] (default 250)")
+    parser.add_argument("--study", default="explore", help="subfolder of results/5_blade/ (default: explore)")
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--vf", type=float, nargs="+", default=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-                        help="IN625 volume fractions to run")
+    parser.add_argument("--vf", type=float, nargs="+", default=[0.3], help="upper bounds on the IN625 volume fraction")
+    add_case_arguments(parser)
+    parser.add_argument("--init", choices=["uniform", "perturbed"], default="uniform", help="starting design")
+    parser.add_argument("--tag", default=None, help="suffix of the case folder")
+    parser.add_argument("--output-freq", type=int, default=5, help="write a .vtu every this many iterations (and the last)")
     args = parser.parse_args()
 
     for vf in args.vf:
-        print(f"\n\nRunning optimization with volume fraction constraint vf <= {vf:.1f}...\n\n")
-        run(vf)
+        print(f"\n\nRunning root stress {args.root_stress:g} MPa, shroud {args.shroud}, {args.hours:g} h, V* = {vf}...\n\n")
+        run(vf=vf, root_stress=args.root_stress, shroud=args.shroud, hours=args.hours, radius_mm=args.radius_mm,
+            num_time_steps=args.steps, elem_size=args.elem_size, fine=args.fine, alpha_mode=args.alpha_mode,
+            expansion=not args.no_expansion, cte_mismatch_scale=args.cte_mismatch_scale, init=args.init, tag=args.tag,
+            study=args.study, t_root=args.t_root, t_hot=args.t_hot, r_hub=args.r_hub, output_freq=args.output_freq)
         _release()

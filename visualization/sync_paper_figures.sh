@@ -3,9 +3,10 @@
 #
 #   visualization/sync_paper_figures.sh /path/to/creep-top-opt-paper/paper
 #
-# Run ./run_all.sh figures first. method_domain.pdf and BC_and_blade_mat_design.pdf are
-# drawn by hand and are copied as they are. creep_optimization_flowchart_cropped.pdf needs
-# pdfcrop: run_all.sh skips the crop if it is not installed.
+# Run ./run_all.sh figures first. method_domain.pdf is drawn by hand and is copied as it is.
+# BC_and_blade_mat_design.pdf is written by visualization/plot_blade_designs.py.
+# creep_optimization_flowchart_cropped.pdf needs pdfcrop: run_all.sh skips the crop if it is
+# not installed.
 set -euo pipefail
 
 dest=${1:?usage: sync_paper_figures.sh <paper directory>}

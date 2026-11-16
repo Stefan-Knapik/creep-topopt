@@ -1,4 +1,4 @@
-"""Design-dependent centrifugal body force of experiments/6_blade_centrifugal on a small HEX8 bar:
+"""Design-dependent centrifugal body force of experiments/5_blade (blade_problem.py) on a small HEX8 bar:
 sign and resultant of the load, reaction at the clamp, and the design sensitivity of the creep
 compliance through the load."""
 import sys
@@ -12,8 +12,8 @@ import pytest
 from toga.fem.generate_mesh import Mesh
 from toga.physics.thermal_creep_explicit import ThermalCreepExplicit
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "experiments" / "6_blade_centrifugal"))
-import centrifugal_blade as cb  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "experiments" / "5_blade"))
+import blade_problem as cb  # noqa: E402
 
 WIDTH, LENGTH = 2.0, 20.0   # mm; the bar spans y = 0 ... LENGTH, centred on x = 0
 NX, NY, NZ = 2, 10, 2
@@ -39,7 +39,7 @@ def bar():
         r_hub, omega = R_HUB, OMEGA
 
     clamp = lambda p: np.isclose(p[1], 0.0, atol=1e-8)
-    materials = cb.build_materials()
+    materials = cb.build_materials(expansion=False)  # the explicit scheme is unstable with thermal expansion
     problem = RotatingBar(bar_mesh(), vec=3, dim=3, ele_type="HEX8",
                           dirichlet_bc_info=[[clamp] * 3, [0, 1, 2], [lambda p: 0.0] * 3],
                           additional_info=(materials,))

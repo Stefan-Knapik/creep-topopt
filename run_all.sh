@@ -6,8 +6,6 @@
 #   GPUS="1 2 3 4 5" ./run_all.sh        # everything, independent steps in parallel on GPUs 1-5
 #
 # Steps: 2_pareto_vf 1_creep_elastic 3_thermal_creep 4_load_magnitude 5_blade appendix figures
-# Optional step, not part of the default list: 6_blade_centrifugal (the blade under centrifugal loading;
-# writes its own figures), e.g. GPU=1 ./run_all.sh 6_blade_centrifugal
 # (1_creep_elastic reuses the creep-aware designs from 2_pareto_vf, so run that first. figures needs
 # both: results/2_pareto_vf/pareto_comparison.csv is written at the end of 1_creep_elastic.)
 # GPUS always runs every step, so it cannot be combined with step arguments.
@@ -102,22 +100,13 @@ step_3_thermal_creep()  {
     run 3_thermal_creep "$PYTHON" -u experiments/3_thermal_creep/evaluate_temperature_dependent_properties.py
 }
 step_4_load_magnitude() { run 4_load_magnitude "$PYTHON" -u experiments/4_load_magnitude/optimize_load_magnitude_sweep.py; }
-step_5_blade() {
-    run 5_blade "$PYTHON" -u experiments/5_blade/optimize_graded_blade.py
-    run 5_blade "$PYTHON" -u experiments/5_blade/evaluate_homogeneous_blends.py
-    run 5_blade "$PYTHON" -u experiments/5_blade/mass_inertia.py
-}
-step_6_blade_centrifugal() {  # optional: rotating blade, centrifugal body force (not in the default list)
-    local B=experiments/6_blade_centrifugal
-    run 6_blade_centrifugal "$PYTHON" -u $B/verify_coarse.py
-    run 6_blade_centrifugal "$PYTHON" -u $B/optimize_graded_blade.py
-    run 6_blade_centrifugal "$PYTHON" -u $B/evaluate_homogeneous_blends.py
-    run 6_blade_centrifugal "$PYTHON" -u $B/optimize_graded_blade.py --mass 0.1 0.3 0.5 0.7
-    run 6_blade_centrifugal "$PYTHON" -u $B/optimize_graded_blade.py --mass 0.3 --inertia 0.25
-    run 6_blade_centrifugal "$PYTHON" -u $B/optimize_graded_blade.py --inertia 0.3
-    run 6_blade_centrifugal "$PYTHON" -u $B/evaluate_gain_factors.py --run data_creep_90
-    run 6_blade_centrifugal "$PYTHON" $B/summarize.py
-    run 6_blade_centrifugal "$PYTHON" $B/plot_pareto.py
+step_5_blade() {  # rotating blade: checks on a coarse mesh, uniform blends, IN625-content sweep, tables and figure
+    # paper case = script defaults (100 MPa root stress, no shroud, 100 h); BLADE_PER_GPU=3 on a 96 GB card
+    local B=experiments/5_blade
+    run 5_blade "$PYTHON" -u $B/verify_setup.py
+    run 5_blade env GPUS="${GPU:-0}" PER_GPU="${BLADE_PER_GPU:-1}" THREADS="${MKL_NUM_THREADS:-8}" $B/run_deploy.sh
+    # uniform blend at the IN625 content of the V* = 0.3 design: its stress field is panel (d) of the blade figure
+    for run_dir in results/5_blade/deploy/*/V30; do run 5_blade "$PYTHON" -u $B/heuristic_design.py "$run_dir"; done
 }
 step_appendix() {
     local A=experiments/appendix
@@ -134,6 +123,7 @@ step_figures() {
     done
     for f in visualization/appendix/plot_A*.py; do run figures "$PYTHON" "$f"; done
     run figures "$PYTHON" visualization/flowchart.py
+    for run_dir in results/5_blade/deploy/*/V30; do run figures "$PYTHON" visualization/plot_blade_designs.py "$run_dir"; done
     run figures "$PYTHON" visualization/animate_design.py
     if command -v pdftoppm > /dev/null; then  # README copies of two paper figures, at 2x resolution
         for f in elastic_vs_creep BC_and_blade_mat_design; do
