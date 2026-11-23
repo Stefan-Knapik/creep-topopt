@@ -73,7 +73,7 @@ def arrow(a, b, label=None, lx=0.25):
 
 
 # ---------------------------------------------------------------- nodes
-block("start", 22.1, "Initialize design variables $\\rho^{0}$\n(uniform density $\\rho=V_{*}$)",
+block("start", 22.1, "Initialize design variables $\\rho^{0}$",
       h=0.85, kind="term")
 block("filter", 20.5,
       "Density filter: $\\rho\\rightarrow\\tilde\\rho$\npenalize $E(\\tilde\\rho)$ and creep prefactor $A(\\tilde\\rho)$",
@@ -89,7 +89,7 @@ block("equil", 14.55,
 block("creep", 12.5,
       "Implicit creep update (local Newton)\nRoot-find for $\\Delta\\varepsilon^{cr}$ at each quadrature point:\n"
       "$\\varepsilon^{el}=\\varepsilon(u_s)-\\varepsilon^{cr}_{s-1}-\\Delta\\varepsilon^{cr}-\\varepsilon^{th},\\ \\ \\sigma=\\mathbb{E}\\!:\\!\\varepsilon^{el}$\n"
-      "$\\dot\\varepsilon^{cr}=A\\,\\sigma_{vm}^{\\,n}\\,N_{ij}$   ($n$: Norton exponent)\n"
+      "$\\dot\\varepsilon^{cr}=A\\,\\sigma_{eq}^{\\,n}\\,N_{ij}$   ($n$: Norton exponent)\n"
       "$r(\\Delta\\varepsilon^{cr})=\\Delta\\varepsilon^{cr}-\\Delta t_s\\,\\dot\\varepsilon^{cr}$", h=1.95, fontsize=8.4)
 block("upd", 10.6,
       "Update history\n$\\sigma_s,\\ \\varepsilon^{cr}_{s}\\leftarrow\\varepsilon^{cr}_{s-1}+\\Delta\\varepsilon^{cr}$;  store $u_s$", h=0.95)
