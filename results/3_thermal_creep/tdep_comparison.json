@@ -1,61 +1,61 @@
 {
   "J_optimizer_final": {
-    "const": 19.849,
-    "tdep": 21.639
+    "const": 19.785,
+    "tdep": 21.663
   },
   "J": {
-    "const_design_under_const_model": 19.84932647498772,
-    "const_design_under_tdep_model": 21.36654594299671,
-    "tdep_design_under_const_model": 20.558136695562098,
-    "tdep_design_under_tdep_model": 21.639141908809506
+    "const_design_under_const_model": 19.78476968049381,
+    "const_design_under_tdep_model": 21.31416762497065,
+    "tdep_design_under_const_model": 20.580398418362165,
+    "tdep_design_under_tdep_model": 21.662862975049393
   },
   "density": {
-    "mean_abs_diff": 0.0636340061493928,
-    "max_abs_diff": 0.9989963632178915,
-    "fraction_diff_gt_0.5": 0.05595,
-    "fraction_diff_gt_0.1": 0.12695,
-    "fraction_solid_cells_shared": 0.887,
+    "mean_abs_diff": 0.06320797921501908,
+    "max_abs_diff": 0.9989975234899515,
+    "fraction_diff_gt_0.5": 0.0561,
+    "fraction_diff_gt_0.1": 0.12655,
+    "fraction_solid_cells_shared": 0.8881666666666667,
     "mean_const": {
-      "all": 0.3099404047894652,
+      "all": 0.3099432140729693,
       "halves_cold_to_hot": [
-        0.3428868304363139,
-        0.27699397914261653
+        0.34224241014365936,
+        0.2776440180022792
       ],
       "quarters_cold_to_hot": [
-        0.4044774190027511,
-        0.2812962418698767,
-        0.12386186665467024,
-        0.43012609163056287
+        0.4039457318290866,
+        0.2805390884582321,
+        0.123802159434303,
+        0.43148587657025544
       ]
     },
     "mean_tdep": {
-      "all": 0.3099537852422968,
+      "all": 0.3099521366611057,
       "halves_cold_to_hot": [
-        0.35139397497177627,
-        0.2685135955128173
+        0.3519977818195503,
+        0.2679064915026611
       ],
       "quarters_cold_to_hot": [
-        0.4136589160492659,
-        0.28912903389428657,
-        0.1226710942101654,
-        0.4143560968154692
+        0.4139695677180832,
+        0.2900259959210175,
+        0.12244609009025283,
+        0.41336689291506934
       ]
     }
   },
   "temperature_K": {
     "const_design": {
-      "max_abs_diff_tdep_vs_const_model": 75.65069044427116,
-      "mean_abs_diff_tdep_vs_const_model": 40.88487137960547,
-      "max_abs_diff_tdep_vs_const_model_solid": 75.65001954984609,
-      "mean_abs_diff_tdep_vs_const_model_solid": 30.01989445197078
+      "max_abs_diff_tdep_vs_const_model": 75.65008287361991,
+      "mean_abs_diff_tdep_vs_const_model": 40.828810974732846,
+      "max_abs_diff_tdep_vs_const_model_solid": 75.65008287361991,
+      "mean_abs_diff_tdep_vs_const_model_solid": 29.8701710529463
     },
     "tdep_design": {
-      "max_abs_diff_tdep_vs_const_model": 75.65056825995396,
-      "mean_abs_diff_tdep_vs_const_model": 41.085772840065296,
-      "max_abs_diff_tdep_vs_const_model_solid": 75.65056825995396,
-      "mean_abs_diff_tdep_vs_const_model_solid": 30.507669984940243
+      "max_abs_diff_tdep_vs_const_model": 75.6501637205871,
+      "mean_abs_diff_tdep_vs_const_model": 41.08961834104342,
+      "max_abs_diff_tdep_vs_const_model_solid": 75.6501637205871,
+      "mean_abs_diff_tdep_vs_const_model_solid": 30.553562079767154
     },
-    "max_abs_diff_between_designs_own_model": 87.50012820429623
+    "max_abs_diff_between_designs_own_model": 88.15080591314444
   },
   "E_MPa": {
     "const_design": {

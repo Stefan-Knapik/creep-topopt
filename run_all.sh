@@ -100,13 +100,22 @@ step_3_thermal_creep()  {
     run 3_thermal_creep "$PYTHON" -u experiments/3_thermal_creep/evaluate_temperature_dependent_properties.py
 }
 step_4_load_magnitude() { run 4_load_magnitude "$PYTHON" -u experiments/4_load_magnitude/optimize_load_magnitude_sweep.py; }
-step_5_blade() {  # rotating blade: checks on a coarse mesh, uniform blends, IN625-content sweep, tables and figure
-    # paper case = script defaults (100 MPa root stress, no shroud, 100 h); BLADE_PER_GPU=3 on a 96 GB card
+step_5_blade() {  # rotating blade: checks, uniform blends, IN625-content sweep, checks of the V* = 0.3 design, tables and figure
+    # paper case = script defaults (100 MPa root stress, no shroud, 100 h); BLADE_PER_GPU=3 on a 96 GB card,
+    # BLADE_GPUS="0 1" to spread the sweep over several GPUs (default: the GPU of this step)
     local B=experiments/5_blade
-    run 5_blade "$PYTHON" -u $B/verify_setup.py
-    run 5_blade env GPUS="${GPU:-0}" PER_GPU="${BLADE_PER_GPU:-1}" THREADS="${MKL_NUM_THREADS:-8}" $B/run_deploy.sh
-    # uniform blend at the IN625 content of the V* = 0.3 design: its stress field is panel (d) of the blade figure
-    for run_dir in results/5_blade/deploy/*/V30; do run 5_blade "$PYTHON" -u $B/heuristic_design.py "$run_dir"; done
+    run 5_blade "$PYTHON" -u $B/verify_setup.py --checks gradient                       # 3k mesh
+    run 5_blade "$PYTHON" -u $B/verify_setup.py --checks sanity energy --elem-size 0.72  # 24,978 elements
+    run 5_blade env GPUS="${BLADE_GPUS:-${GPU:-0}}" PER_GPU="${BLADE_PER_GPU:-1}" THREADS="${BLADE_THREADS:-${MKL_NUM_THREADS:-8}}" $B/run_deploy.sh
+    for run_dir in results/5_blade/deploy/*/V30; do
+        # uniform blend at the IN625 content of the V* = 0.3 design: its stress field is panel (d) of the blade figure
+        run 5_blade "$PYTHON" -u $B/heuristic_design.py "$run_dir"
+        # J at 10 / 40 / 160 implicit steps; stress statistics of the 50/50 blend
+        run 5_blade "$PYTHON" -u $B/verify_setup.py --checks timestep --fine --design "$run_dir/design_final.npy" --tag S100_fine
+        # dissipation share above 60 MPa, peak creep strains; explicit against implicit on the 24,978-element mesh
+        run 5_blade "$PYTHON" -u $B/verify_design.py "$run_dir"
+    done
+    run 5_blade "$PYTHON" $B/summarize.py --study deploy  # again: the capture ratio needs heuristic.json
 }
 step_appendix() {
     local A=experiments/appendix
@@ -124,6 +133,9 @@ step_figures() {
     for f in visualization/appendix/plot_A*.py; do run figures "$PYTHON" "$f"; done
     run figures "$PYTHON" visualization/flowchart.py
     for run_dir in results/5_blade/deploy/*/V30; do run figures "$PYTHON" visualization/plot_blade_designs.py "$run_dir"; done
+    for case_dir in results/5_blade/deploy/*/; do
+        [ -f "$case_dir/homogeneous_blends.csv" ] && run figures "$PYTHON" experiments/5_blade/plot_pareto.py "$case_dir"
+    done
     run figures "$PYTHON" visualization/animate_design.py
     if command -v pdftoppm > /dev/null; then  # README copies of two paper figures, at 2x resolution
         for f in elastic_vs_creep BC_and_blade_mat_design; do
